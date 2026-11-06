@@ -189,6 +189,7 @@ function StudioContent({
   const setShortcutsOpen = useEditorStore((state) => state.setShortcutsOpen);
   const handledReference = useRef<string | null>(null);
   const [detailElementId, setDetailElementId] = useState<string | null>(null);
+  const [restoreViewport, setRestoreViewport] = useState(false);
   const connectFrom = useEditorStore((state) => state.connectFrom);
 
   useWorkspaceEvents(workspaceId);
@@ -236,6 +237,7 @@ function StudioContent({
     if (nextViewId === activeViewId) return;
     const current = currentLocation();
     if (current) setNavigation((state) => visitView(state, current, nextViewId));
+    setRestoreViewport(false);
     clearSelection();
     setDetailElementId(null);
     onNavigate(workspaceId, nextViewId);
@@ -252,6 +254,7 @@ function StudioContent({
       {
         onSuccess: () => {
           setNavigation(emptyNavigation());
+          setRestoreViewport(false);
           clearSelection();
           setDetailElementId(null);
           onNavigate(workspaceId, next?.id ?? null);
@@ -264,6 +267,7 @@ function StudioContent({
     const current = currentLocation();
     if (!target || !current || !viewList.some((item) => item.id === target.viewId)) return;
     setNavigation((state) => returnToView(state, current, index));
+    setRestoreViewport(true);
     if (target.viewId === activeViewId) resetNavigation();
     clearSelection();
     setDetailElementId(null);
@@ -521,7 +525,9 @@ function StudioContent({
                           boundaries={boundaries}
                           relationships={relationships}
                           records={recordList}
-                          initialLocation={navigation.saved[view.data.id]}
+                          initialLocation={
+                            restoreViewport ? navigation.saved[view.data.id] : undefined
+                          }
                           onOpenDetails={openDetails}
                           canOpenDetails={canOpenDetails}
                           onBack={back}

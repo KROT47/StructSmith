@@ -235,10 +235,10 @@ export function Canvas({
   }, [graph.edges]);
 
   /**
-   * Fit the diagram once per view, as soon as React Flow has measured the
-   * nodes. The `fitView` prop alone runs before the panel layout has settled
-   * and before the model query resolves, so entering a workspace from the home
-   * screen would otherwise land on an unfitted canvas.
+   * Frame a newly opened view once React Flow has measured its nodes. Going
+   * back passes the viewport saved on the way forward, and that camera is
+   * restored instead. The `fitView` prop alone runs before the panel layout
+   * has settled and before the model query resolves.
    */
   const nodesInitialized = useNodesInitialized();
   const fittedViewId = useRef<string | null>(null);
@@ -249,7 +249,7 @@ export function Canvas({
     if (fittedViewId.current === view.id) return;
     fittedViewId.current = view.id;
     if (initialViewport.current) void flow.setViewport(initialViewport.current);
-    else if (nodes.length > 0) void flow.fitView({ padding: 0.25, maxZoom: 1, duration: 250 });
+    else if (nodes.length > 0) void flow.fitView({ duration: 300, padding: 0.2 });
     if (restoredSelection.current) select(restoredSelection.current);
   }, [nodesInitialized, nodes.length, view.id, flow, select]);
 
@@ -1195,7 +1195,7 @@ export function Canvas({
         maxZoom={2.5}
         defaultViewport={initialViewport.current}
         fitView={!initialViewport.current}
-        fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
+        fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: false }}
         deleteKeyCode={["Delete", "Backspace"]}
       >
