@@ -6,6 +6,7 @@ import {
   Languages,
   LayoutGrid,
   Maximize,
+  MessageCircle,
   Monitor,
   Moon,
   Plug,
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useChatStore } from "@/features/chat/store";
 import { supportedLanguages } from "@/i18n";
 import { primaryModifierLabel } from "@/lib/platform";
 import { type Theme, useTheme } from "@/lib/theme";
@@ -62,6 +64,8 @@ export function TopBar(props: TopBarProps) {
   const copyReference = useCopyAgentReference();
   const setCommandOpen = useEditorStore((state) => state.setCommandOpen);
   const setShortcutsOpen = useEditorStore((state) => state.setShortcutsOpen);
+  const chatOpen = useChatStore((state) => state.open);
+  const setChatOpen = useChatStore((state) => state.setOpen);
   const openElementPalette = useEditorStore((state) => state.openElementPalette);
   const openNewView = useEditorStore((state) => state.openNewView);
 
@@ -241,6 +245,18 @@ export function TopBar(props: TopBarProps) {
           onClick={() => setShortcutsOpen(true)}
         >
           <Keyboard className="h-3.5 w-3.5" />
+        </Button>
+      </Tooltip>
+
+      <Tooltip label={t("chat.title")}>
+        <Button
+          variant="ghost"
+          size="iconSm"
+          aria-label={t("chat.title")}
+          aria-expanded={chatOpen}
+          onClick={() => setChatOpen(!chatOpen)}
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
         </Button>
       </Tooltip>
 

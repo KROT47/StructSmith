@@ -245,15 +245,6 @@ export function AgentChatDock() {
 
   return (
     <>
-      {!open && (
-        <Button
-          className="fixed bottom-10 right-4 z-40 gap-2 rounded-full shadow-lg"
-          onClick={() => setOpen(true)}
-        >
-          <MessageCircle className="h-4 w-4" />
-          {t("chat.title")}
-        </Button>
-      )}
       {open && (
         <aside
           aria-label={t("chat.title")}
