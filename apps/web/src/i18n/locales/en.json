@@ -380,6 +380,7 @@
     "redo": "Redo",
     "fitView": "Fit view",
     "toggleInspector": "Toggle inspector",
+    "toggleSidePanels": "Toggle both side panels and fit the view",
     "modelTab": "Model tab",
     "viewsTab": "Views tab",
     "zoomIn": "Zoom in",

@@ -30,6 +30,7 @@ export function KeyboardShortcutsDialog() {
     [t("shortcuts.redo"), `${primary} Shift Z`],
     [t("shortcuts.fitView"), "F"],
     [t("shortcuts.toggleInspector"), "I"],
+    [t("shortcuts.toggleSidePanels"), "H"],
     [t("shortcuts.viewsTab"), "V"],
     [t("shortcuts.modelTab"), "M"],
     [t("shortcuts.zoomIn"), "="],

@@ -65,18 +65,24 @@ function useCollapsiblePanel(defaultSize: string) {
     }
     setCollapsed((current) => (current === next ? current : next));
   };
-  const toggle = (): void => {
+  const applyCollapsed = (next: boolean): void => {
     const panel = panelRef.current;
-    if (!panel) return;
-    if (panel.isCollapsed()) panel.resize(expandedSize.current);
-    else {
+    if (!panel || panel.isCollapsed() === next) return;
+    if (next) {
       const { asPercentage } = panel.getSize();
       if (asPercentage > 0) expandedSize.current = `${asPercentage}%`;
       panel.collapse();
+    } else {
+      panel.resize(expandedSize.current);
     }
     syncCollapsed();
   };
-  return { panelRef, collapsed, syncCollapsed, toggle };
+  const toggle = (): void => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    applyCollapsed(!panel.isCollapsed());
+  };
+  return { panelRef, collapsed, syncCollapsed, toggle, applyCollapsed };
 }
 
 export function StudioPage(props: StudioPageProps) {
@@ -312,6 +318,19 @@ function StudioContent({
     setExplorerTab(tab);
   };
 
+  const toggleSidePanels = (): void => {
+    const explorer = explorerPanel.panelRef.current;
+    const inspector = inspectorPanel.panelRef.current;
+    if (!explorer || !inspector) return;
+    const hide = !(explorer.isCollapsed() && inspector.isCollapsed());
+    explorerPanel.applyCollapsed(hide);
+    inspectorPanel.applyCollapsed(hide);
+    // Panel layout and React Flow's container size settle on the next frames.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => fitView());
+    });
+  };
+
   /* ------------------------------- shortcuts ------------------------------- */
 
   useEffect(() => {
@@ -350,6 +369,9 @@ function StudioContent({
         if (matchesLayoutKey(event, "i")) {
           event.preventDefault();
           inspectorPanel.toggle();
+        } else if (matchesLayoutKey(event, "h")) {
+          event.preventDefault();
+          toggleSidePanels();
         } else if (matchesLayoutKey(event, "m")) {
           event.preventDefault();
           showExplorerTab("model");
