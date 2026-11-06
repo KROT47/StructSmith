@@ -19,6 +19,7 @@ import {
   type NodeMouseHandler,
   type OnNodeDrag,
   type OnSelectionChangeParams,
+  PanOnScrollMode,
   ReactFlow,
   SelectionMode,
   useNodesInitialized,
@@ -1102,6 +1103,14 @@ export function Canvas({
           if (elementId) onOpenDetails(String(elementId));
         }}
         zoomOnDoubleClick={false}
+        // Two-finger trackpad and mouse-wheel movement pans on both axes, in
+        // step with the gesture. Pinch, and the primary modifier plus scroll,
+        // still change the scale.
+        zoomOnScroll={false}
+        zoomOnPinch
+        panOnScroll
+        panOnScrollMode={PanOnScrollMode.Free}
+        panOnScrollSpeed={1}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
         onPaneClick={() => {

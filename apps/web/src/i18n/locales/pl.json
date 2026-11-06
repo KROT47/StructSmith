@@ -384,8 +384,11 @@
     "fitView": "Dopasuj widok",
     "clearSelection": "Wyczyść zaznaczenie",
     "pan": "Przesuń kanwę",
+    "zoom": "Zmień skalę",
     "click": "kliknięcie",
-    "dragCanvas": "przeciągnięcie po kanwie"
+    "dragCanvas": "przeciągnięcie po kanwie",
+    "scrollOrDrag": "przewijanie, gest gładzika lub przeciągnięcie",
+    "pinchOrModifierScroll": "uszczypnięcie lub {{modifier}} + przewijanie"
   },
   "status": {
     "revision": "rew. {{revision}}",

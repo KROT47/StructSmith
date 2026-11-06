@@ -29,7 +29,8 @@ export function KeyboardShortcutsDialog() {
     [t("shortcuts.redo"), `${primary} Shift Z`],
     [t("shortcuts.fitView"), "F"],
     [t("shortcuts.clearSelection"), "Escape"],
-    [t("shortcuts.pan"), t("shortcuts.dragCanvas")],
+    [t("shortcuts.pan"), t("shortcuts.scrollOrDrag")],
+    [t("shortcuts.zoom"), t("shortcuts.pinchOrModifierScroll", { modifier: primary })],
   ] as const;
 
   return (

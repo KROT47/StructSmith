@@ -376,8 +376,11 @@
     "fitView": "Fit view",
     "clearSelection": "Clear selection",
     "pan": "Pan canvas",
+    "zoom": "Zoom",
     "click": "click",
-    "dragCanvas": "drag canvas"
+    "dragCanvas": "drag canvas",
+    "scrollOrDrag": "scroll, trackpad swipe, or drag",
+    "pinchOrModifierScroll": "pinch or {{modifier}} + scroll"
   },
   "status": {
     "revision": "rev {{revision}}",
