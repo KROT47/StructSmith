@@ -175,6 +175,8 @@
   },
   "inspector": {
     "title": "Inspector",
+    "collapse": "Collapse inspector",
+    "expand": "Expand inspector",
     "nothingSelected": "Select an element or a relationship.",
     "multipleSelected": "{{count}} elements selected. Move, copy or remove them as a group.",
     "hint": "Changes are saved automatically.",
@@ -375,6 +377,7 @@
     "undo": "Undo",
     "redo": "Redo",
     "fitView": "Fit view",
+    "toggleInspector": "Toggle inspector",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "clearSelection": "Clear selection",

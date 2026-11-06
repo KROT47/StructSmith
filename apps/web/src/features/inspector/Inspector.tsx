@@ -12,9 +12,11 @@ import type {
   ViewDetail,
 } from "@structsmith/contracts";
 import { elementKinds, elementRoles, interactionStyles } from "@structsmith/contracts";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -27,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useApplyOperations } from "@/hooks/useApi";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { cn } from "@/lib/utils";
@@ -45,6 +48,8 @@ interface InspectorProps {
   relationships: readonly ArchitectureRelationship[];
   records: readonly ArchitectureRecord[];
   view: ViewDetail | null;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -61,6 +66,8 @@ export function Inspector({
   relationships,
   records,
   view,
+  collapsed,
+  onToggleCollapse,
 }: InspectorProps) {
   const { t } = useTranslation();
   const selection = useEditorStore((state) => state.selection);
@@ -75,15 +82,41 @@ export function Inspector({
   const boundary =
     selection.type === "boundary" ? boundaries.find((item) => item.id === selection.id) : undefined;
 
+  const collapseLabel = t(collapsed ? "inspector.expand" : "inspector.collapse");
+
   return (
-    <div className="flex h-full min-h-0 flex-col bg-card">
-      <div className="flex h-8 items-center border-b border-border px-3">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {t("inspector.title")}
-        </span>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
+      <div
+        className={cn(
+          "flex h-8 shrink-0 items-center border-b border-border",
+          collapsed ? "justify-center px-1" : "gap-2 px-3",
+        )}
+      >
+        {!collapsed && (
+          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t("inspector.title")}
+          </span>
+        )}
+        <Tooltip label={collapseLabel} side="left">
+          <Button
+            type="button"
+            size="iconSm"
+            variant="ghost"
+            className="h-6 w-6 shrink-0"
+            aria-expanded={!collapsed}
+            aria-label={collapseLabel}
+            onClick={onToggleCollapse}
+          >
+            {collapsed ? (
+              <PanelRightOpen className="h-3.5 w-3.5" />
+            ) : (
+              <PanelRightClose className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </Tooltip>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className={cn("min-h-0 flex-1", collapsed && "hidden")}>
         <div className="space-y-4 p-3 pb-10">
           {element && <DetailViewAction elementId={element.id} />}
           {element && (

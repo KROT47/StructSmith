@@ -2,7 +2,7 @@ import { detailViewKind, detailViewsFor } from "@structsmith/domain";
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Group, Panel, Separator } from "react-resizable-panels";
+import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
 import { Canvas } from "@/features/canvas/Canvas";
 import { useChatStore } from "@/features/chat/store";
@@ -112,6 +112,30 @@ function StudioContent({
   const view = useView(activeViewId);
   const applyOperations = useApplyOperations(workspaceId);
   const history = useHistory(workspaceId);
+  const inspectorPanel = usePanelRef();
+  const inspectorExpandedSize = useRef("22%");
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const syncInspectorCollapsed = (): void => {
+    const panel = inspectorPanel.current;
+    if (!panel) return;
+    const collapsed = panel.isCollapsed();
+    if (!collapsed) {
+      const { asPercentage } = panel.getSize();
+      if (asPercentage > 0) inspectorExpandedSize.current = `${asPercentage}%`;
+    }
+    setInspectorCollapsed((current) => (current === collapsed ? current : collapsed));
+  };
+  const toggleInspector = (): void => {
+    const panel = inspectorPanel.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.resize(inspectorExpandedSize.current);
+    else {
+      const { asPercentage } = panel.getSize();
+      if (asPercentage > 0) inspectorExpandedSize.current = `${asPercentage}%`;
+      panel.collapse();
+    }
+    syncInspectorCollapsed();
+  };
 
   const clearSelection = useEditorStore((state) => state.clearSelection);
   const selection = useEditorStore((state) => state.selection);
@@ -283,7 +307,10 @@ function StudioContent({
       if (event.key === "Escape") clearSelection();
       if (event.key.toLowerCase() === "f") fitView();
       if (!event.metaKey && !event.ctrlKey && !event.altKey) {
-        if (event.key === "-") {
+        if (event.key.toLowerCase() === "i") {
+          event.preventDefault();
+          toggleInspector();
+        } else if (event.key === "-") {
           event.preventDefault();
           void flow.zoomOut();
         } else if (event.key === "=" || event.key === "+") {
@@ -407,7 +434,15 @@ function StudioContent({
             </Panel>
 
             <Separator className="w-px bg-border transition-colors hover:bg-primary/40" />
-            <Panel defaultSize="22%" minSize="14%" maxSize="40%">
+            <Panel
+              panelRef={inspectorPanel}
+              collapsible
+              collapsedSize={40}
+              defaultSize="22%"
+              minSize="14%"
+              maxSize="40%"
+              onResize={syncInspectorCollapsed}
+            >
               <Inspector
                 workspaceId={workspaceId}
                 elements={elements}
@@ -415,6 +450,8 @@ function StudioContent({
                 relationships={relationships}
                 records={recordList}
                 view={view.data ?? null}
+                collapsed={inspectorCollapsed}
+                onToggleCollapse={toggleInspector}
               />
             </Panel>
           </Group>

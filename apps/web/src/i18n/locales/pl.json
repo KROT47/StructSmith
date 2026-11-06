@@ -183,6 +183,8 @@
   },
   "inspector": {
     "title": "Inspektor",
+    "collapse": "Zwiń inspektor",
+    "expand": "Rozwiń inspektor",
     "nothingSelected": "Wybierz element lub relację.",
     "multipleSelected": "Wybrano {{count}} elementów. Możesz je razem przesuwać, kopiować lub usuwać.",
     "hint": "Zmiany zapisują się automatycznie.",
@@ -383,6 +385,7 @@
     "undo": "Cofnij",
     "redo": "Ponów",
     "fitView": "Dopasuj widok",
+    "toggleInspector": "Przełącz inspektor",
     "zoomIn": "Powiększ",
     "zoomOut": "Pomniejsz",
     "clearSelection": "Wyczyść zaznaczenie",

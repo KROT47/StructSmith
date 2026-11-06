@@ -29,6 +29,7 @@ export function KeyboardShortcutsDialog() {
     [t("shortcuts.undo"), `${primary} Z`],
     [t("shortcuts.redo"), `${primary} Shift Z`],
     [t("shortcuts.fitView"), "F"],
+    [t("shortcuts.toggleInspector"), "I"],
     [t("shortcuts.zoomIn"), "="],
     [t("shortcuts.zoomOut"), "-"],
     [t("shortcuts.clearSelection"), "Escape"],
