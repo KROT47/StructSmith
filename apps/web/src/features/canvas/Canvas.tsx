@@ -70,6 +70,53 @@ const edgeTypes = { relationship: RelationshipEdge };
 const LAYOUT_DEBOUNCE_MS = 500;
 const SELECTION_KEYS = ["Meta", "Control"];
 
+/**
+ * Command/Ctrl+A is also the browser's Select All. That highlight sometimes
+ * appears only after React Flow focuses the selection rectangle, which is
+ * later than the keydown event. Hold the block until the modifier key is released.
+ */
+let releasePageSelection: (() => void) | null = null;
+
+function suppressPageTextSelection(): void {
+  releasePageSelection?.();
+  document.documentElement.classList.add("suppress-page-selection");
+  const blockSelectStart = (selectEvent: Event) => {
+    selectEvent.preventDefault();
+  };
+  const clearTextSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) return;
+    const anchor = selection.anchorNode;
+    const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+    if (element?.closest("input, textarea, [contenteditable='true']")) return;
+    selection.removeAllRanges();
+  };
+  document.addEventListener("selectstart", blockSelectStart, true);
+  document.addEventListener("selectionchange", clearTextSelection);
+  clearTextSelection();
+
+  let ended = false;
+  const end = () => {
+    if (ended) return;
+    ended = true;
+    if (releasePageSelection === end) releasePageSelection = null;
+    window.removeEventListener("keyup", onKeyUp, true);
+    window.removeEventListener("blur", end);
+    document.removeEventListener("selectstart", blockSelectStart, true);
+    document.removeEventListener("selectionchange", clearTextSelection);
+    document.documentElement.classList.remove("suppress-page-selection");
+    clearTextSelection();
+  };
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (event.key !== "Meta" && event.key !== "Control") return;
+    window.removeEventListener("keyup", onKeyUp, true);
+    requestAnimationFrame(() => requestAnimationFrame(end));
+  };
+  releasePageSelection = end;
+  window.addEventListener("keyup", onKeyUp, true);
+  window.addEventListener("blur", end);
+}
+
 export const DRAG_MIME = "application/x-architecture-element";
 
 interface CanvasProps {
@@ -946,6 +993,7 @@ export function Canvas({
 
       if (matchesLayoutKey(event, "a")) {
         event.preventDefault();
+        suppressPageTextSelection();
         const ids = nodes.filter((node) => node.type === "element").map((node) => node.id);
         setNodes((current) =>
           current.map((node) => ({ ...node, selected: node.type === "element" })),
@@ -978,8 +1026,8 @@ export function Canvas({
       }
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [
     applyOperations,
     clearSelection,

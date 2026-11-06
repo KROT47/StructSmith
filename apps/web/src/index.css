@@ -206,3 +206,14 @@
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
+
+/* Command/Ctrl+A selects diagram elements. While that shortcut is held, the
+   browser must not highlight the rest of the page. */
+html.suppress-page-selection {
+  user-select: none;
+}
+html.suppress-page-selection input,
+html.suppress-page-selection textarea,
+html.suppress-page-selection [contenteditable="true"] {
+  user-select: text;
+}
