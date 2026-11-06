@@ -1,9 +1,10 @@
 import type { ArchitectureElement, ArchitectureView } from "@structsmith/contracts";
 import { detailViewKind, detailViewsFor } from "@structsmith/domain";
-import { ArrowDownRight } from "lucide-react";
+import { ArrowDownRight, Plus } from "lucide-react";
 import { createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface DetailNavigation {
   elements: readonly ArchitectureElement[];
@@ -43,18 +44,24 @@ export function DetailViewAction({
   const { t } = useTranslation();
   const navigation = useDetailNavigation(elementId);
   if (!navigation.available) return null;
-  const label = t("navigation.openDetails");
+  const linked = navigation.count > 0;
+  const label = t(linked ? "navigation.openDetails" : "navigation.createDetails");
+  const Icon = linked ? ArrowDownRight : Plus;
   return (
     <Button
       type="button"
       size={compact ? "iconSm" : "sm"}
-      variant={compact ? "ghost" : "outline"}
-      className="nodrag nopan shrink-0 normal-case tracking-normal"
+      variant="ghost"
+      data-detail-state={linked ? "linked" : "empty"}
+      className={cn(
+        "nodrag nopan shrink-0 border normal-case tracking-normal",
+        linked
+          ? "border-primary/40 bg-primary/15 text-primary hover:bg-primary/25 hover:text-primary"
+          : "border-dashed border-muted-foreground/40 text-muted-foreground hover:text-foreground",
+      )}
       aria-label={label}
       title={
-        navigation.count > 0
-          ? t("navigation.openHint", { count: navigation.count })
-          : t("navigation.createHint")
+        linked ? t("navigation.openHint", { count: navigation.count }) : t("navigation.createHint")
       }
       disabled={!navigation.enabled}
       onClick={(event) => {
@@ -63,7 +70,7 @@ export function DetailViewAction({
       }}
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      <ArrowDownRight className="h-3.5 w-3.5" />
+      <Icon className="h-3.5 w-3.5" />
       {!compact && label}
     </Button>
   );
