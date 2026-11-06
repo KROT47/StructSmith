@@ -51,6 +51,34 @@ interface StudioPageProps {
   onGoHome: () => void;
 }
 
+function useCollapsiblePanel(defaultSize: string) {
+  const panelRef = usePanelRef();
+  const expandedSize = useRef(defaultSize);
+  const [collapsed, setCollapsed] = useState(false);
+  const syncCollapsed = (): void => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const next = panel.isCollapsed();
+    if (!next) {
+      const { asPercentage } = panel.getSize();
+      if (asPercentage > 0) expandedSize.current = `${asPercentage}%`;
+    }
+    setCollapsed((current) => (current === next ? current : next));
+  };
+  const toggle = (): void => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.resize(expandedSize.current);
+    else {
+      const { asPercentage } = panel.getSize();
+      if (asPercentage > 0) expandedSize.current = `${asPercentage}%`;
+      panel.collapse();
+    }
+    syncCollapsed();
+  };
+  return { panelRef, collapsed, syncCollapsed, toggle };
+}
+
 export function StudioPage(props: StudioPageProps) {
   return <WorkspaceStudio key={props.workspaceId} {...props} />;
 }
@@ -113,30 +141,8 @@ function StudioContent({
   const view = useView(activeViewId);
   const applyOperations = useApplyOperations(workspaceId);
   const history = useHistory(workspaceId);
-  const inspectorPanel = usePanelRef();
-  const inspectorExpandedSize = useRef("22%");
-  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
-  const syncInspectorCollapsed = (): void => {
-    const panel = inspectorPanel.current;
-    if (!panel) return;
-    const collapsed = panel.isCollapsed();
-    if (!collapsed) {
-      const { asPercentage } = panel.getSize();
-      if (asPercentage > 0) inspectorExpandedSize.current = `${asPercentage}%`;
-    }
-    setInspectorCollapsed((current) => (current === collapsed ? current : collapsed));
-  };
-  const toggleInspector = (): void => {
-    const panel = inspectorPanel.current;
-    if (!panel) return;
-    if (panel.isCollapsed()) panel.resize(inspectorExpandedSize.current);
-    else {
-      const { asPercentage } = panel.getSize();
-      if (asPercentage > 0) inspectorExpandedSize.current = `${asPercentage}%`;
-      panel.collapse();
-    }
-    syncInspectorCollapsed();
-  };
+  const explorerPanel = useCollapsiblePanel("19%");
+  const inspectorPanel = useCollapsiblePanel("22%");
 
   const clearSelection = useEditorStore((state) => state.clearSelection);
   const selection = useEditorStore((state) => state.selection);
@@ -385,7 +391,15 @@ function StudioContent({
 
         <div className="min-h-0 flex-1">
           <Group orientation="horizontal">
-            <Panel defaultSize="19%" minSize="12%" maxSize="34%">
+            <Panel
+              panelRef={explorerPanel.panelRef}
+              collapsible
+              collapsedSize={40}
+              defaultSize="19%"
+              minSize="12%"
+              maxSize="34%"
+              onResize={explorerPanel.syncCollapsed}
+            >
               <Explorer
                 workspaceId={workspaceId}
                 elements={elements}
@@ -395,6 +409,8 @@ function StudioContent({
                 view={view.data ?? null}
                 activeViewId={activeViewId}
                 onSelectView={selectView}
+                collapsed={explorerPanel.collapsed}
+                onToggleCollapse={explorerPanel.toggle}
               />
             </Panel>
             <Separator className="w-px bg-border transition-colors hover:bg-primary/40" />
@@ -456,13 +472,13 @@ function StudioContent({
 
             <Separator className="w-px bg-border transition-colors hover:bg-primary/40" />
             <Panel
-              panelRef={inspectorPanel}
+              panelRef={inspectorPanel.panelRef}
               collapsible
               collapsedSize={40}
               defaultSize="22%"
               minSize="14%"
               maxSize="40%"
-              onResize={syncInspectorCollapsed}
+              onResize={inspectorPanel.syncCollapsed}
             >
               <Inspector
                 workspaceId={workspaceId}
@@ -471,8 +487,8 @@ function StudioContent({
                 relationships={relationships}
                 records={recordList}
                 view={view.data ?? null}
-                collapsed={inspectorCollapsed}
-                onToggleCollapse={toggleInspector}
+                collapsed={inspectorPanel.collapsed}
+                onToggleCollapse={inspectorPanel.toggle}
               />
             </Panel>
           </Group>

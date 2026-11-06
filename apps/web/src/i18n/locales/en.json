@@ -155,6 +155,8 @@
     "model": "Model",
     "views": "Views",
     "presales": "Presales",
+    "collapse": "Collapse explorer",
+    "expand": "Expand explorer",
     "people": "Actors",
     "systems": "Systems",
     "externalSystems": "External systems",
