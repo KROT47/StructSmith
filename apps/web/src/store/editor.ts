@@ -76,7 +76,7 @@ interface EditorState {
 
 export const useEditorStore = create<EditorState>((set) => ({
   selection: { type: "none" },
-  explorerTab: "model",
+  explorerTab: "views",
   bottomPanel: null,
   commandOpen: false,
   shortcutsOpen: false,

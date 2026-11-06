@@ -388,6 +388,8 @@
     "redo": "Ponów",
     "fitView": "Dopasuj widok",
     "toggleInspector": "Przełącz inspektor",
+    "modelTab": "Zakładka Model",
+    "viewsTab": "Zakładka Widoki",
     "zoomIn": "Powiększ",
     "zoomOut": "Pomniejsz",
     "clearSelection": "Wyczyść zaznaczenie",

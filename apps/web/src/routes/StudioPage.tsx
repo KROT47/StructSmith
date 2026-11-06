@@ -298,6 +298,20 @@ function StudioContent({
 
   const fitView = (): void => void flow.fitView({ duration: 300, padding: 0.2 });
 
+  const showExplorerTab = (tab: "model" | "views"): void => {
+    const panel = explorerPanel.panelRef.current;
+    if (panel?.isCollapsed()) {
+      setExplorerTab(tab);
+      explorerPanel.toggle();
+      return;
+    }
+    if (useEditorStore.getState().explorerTab === tab) {
+      explorerPanel.toggle();
+      return;
+    }
+    setExplorerTab(tab);
+  };
+
   /* ------------------------------- shortcuts ------------------------------- */
 
   useEffect(() => {
@@ -335,7 +349,13 @@ function StudioContent({
       if (!event.metaKey && !event.ctrlKey && !event.altKey) {
         if (matchesLayoutKey(event, "i")) {
           event.preventDefault();
-          toggleInspector();
+          inspectorPanel.toggle();
+        } else if (matchesLayoutKey(event, "m")) {
+          event.preventDefault();
+          showExplorerTab("model");
+        } else if (matchesLayoutKey(event, "v")) {
+          event.preventDefault();
+          showExplorerTab("views");
         } else if (matchesLayoutKey(event, "-")) {
           event.preventDefault();
           void flow.zoomOut();

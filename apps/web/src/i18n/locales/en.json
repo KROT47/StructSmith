@@ -380,6 +380,8 @@
     "redo": "Redo",
     "fitView": "Fit view",
     "toggleInspector": "Toggle inspector",
+    "modelTab": "Model tab",
+    "viewsTab": "Views tab",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "clearSelection": "Clear selection",

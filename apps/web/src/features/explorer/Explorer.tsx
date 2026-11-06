@@ -49,8 +49,8 @@ export function Explorer(props: ExplorerProps) {
       >
         {!props.collapsed && (
           <TabsList className="min-w-0 flex-1 border-b-0">
-            <TabsTrigger value="model">{t("explorer.model")}</TabsTrigger>
             <TabsTrigger value="views">{t("explorer.views")}</TabsTrigger>
+            <TabsTrigger value="model">{t("explorer.model")}</TabsTrigger>
             <TabsTrigger value="presales">{t("explorer.presales")}</TabsTrigger>
           </TabsList>
         )}
@@ -74,14 +74,6 @@ export function Explorer(props: ExplorerProps) {
       </div>
 
       <div className={cn("flex min-h-0 flex-1 flex-col", props.collapsed && "hidden")}>
-        <TabsContent value="model" className="min-h-0">
-          <ModelTree
-            workspaceId={props.workspaceId}
-            elements={props.elements}
-            boundaries={props.boundaries}
-            view={props.view}
-          />
-        </TabsContent>
         <TabsContent value="views" className="min-h-0">
           <ViewsPanel
             workspaceId={props.workspaceId}
@@ -89,6 +81,14 @@ export function Explorer(props: ExplorerProps) {
             elements={props.elements}
             activeViewId={props.activeViewId}
             onSelectView={props.onSelectView}
+          />
+        </TabsContent>
+        <TabsContent value="model" className="min-h-0">
+          <ModelTree
+            workspaceId={props.workspaceId}
+            elements={props.elements}
+            boundaries={props.boundaries}
+            view={props.view}
           />
         </TabsContent>
         <TabsContent value="presales" className="min-h-0">
