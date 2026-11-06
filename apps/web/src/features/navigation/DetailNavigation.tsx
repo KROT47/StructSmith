@@ -54,7 +54,7 @@ export function DetailViewAction({
       variant="ghost"
       data-detail-state={linked ? "linked" : "empty"}
       className={cn(
-        "nodrag nopan shrink-0 border normal-case tracking-normal",
+        "nodrag nopan shrink-0 cursor-pointer border normal-case tracking-normal disabled:pointer-events-auto disabled:cursor-pointer",
         linked
           ? "border-primary/40 bg-primary/15 text-primary hover:bg-primary/25 hover:text-primary"
           : "border-dashed border-muted-foreground/40 text-muted-foreground hover:text-foreground",
