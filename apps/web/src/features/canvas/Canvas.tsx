@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/features/chat/store";
 import { useApiErrorHandler, useApplyOperations } from "@/hooks/useApi";
 import { api } from "@/lib/api";
+import { matchesLayoutKey } from "@/lib/keyboardLayout";
 import { hasPrimaryModifier } from "@/lib/platform";
 import { invalidateWorkspace } from "@/lib/query";
 import { useEditorStore } from "@/store/editor";
@@ -943,8 +944,7 @@ export function Canvas({
         target?.isContentEditable === true;
       if (typing || !hasPrimaryModifier(event)) return;
 
-      const key = event.key.toLowerCase();
-      if (key === "a") {
+      if (matchesLayoutKey(event, "a")) {
         event.preventDefault();
         const ids = nodes.filter((node) => node.type === "element").map((node) => node.id);
         setNodes((current) =>
@@ -959,7 +959,7 @@ export function Canvas({
         return;
       }
 
-      if (key === "c") {
+      if (matchesLayoutKey(event, "c")) {
         const ids = nodes
           .filter((node) => node.type === "element" && node.selected)
           .map((node) => node.id);
@@ -968,7 +968,7 @@ export function Canvas({
         return;
       }
 
-      if (key === "v" && clipboard && !applyOperations.isPending) {
+      if (matchesLayoutKey(event, "v") && clipboard && !applyOperations.isPending) {
         event.preventDefault();
         applyOperations.mutate({
           label: t("canvas.pastedElements", { count: clipboard.elements.length }),

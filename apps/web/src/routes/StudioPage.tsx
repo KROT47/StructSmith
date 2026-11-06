@@ -37,6 +37,7 @@ import {
 import { useHistory } from "@/hooks/useHistory";
 import { useWorkspaceEvents } from "@/hooks/useWorkspaceEvents";
 import { parseReferenceSearchValue } from "@/lib/agentReference";
+import { matchesLayoutKey } from "@/lib/keyboardLayout";
 import { hasPrimaryModifier } from "@/lib/platform";
 import { useEditorStore } from "@/store/editor";
 import { useHistoryStore } from "@/store/history";
@@ -283,37 +284,37 @@ function StudioContent({
         target?.isContentEditable === true;
       const primary = hasPrimaryModifier(event);
 
-      if (primary && event.key.toLowerCase() === "k") {
+      if (primary && matchesLayoutKey(event, "k")) {
         event.preventDefault();
         setCommandOpen(true);
         return;
       }
-      if (primary && event.key === "/") {
+      if (primary && matchesLayoutKey(event, "/")) {
         event.preventDefault();
         setShortcutsOpen(true);
         return;
       }
       if (typing) return;
-      if (primary && event.key.toLowerCase() === "z") {
+      if (primary && matchesLayoutKey(event, "z")) {
         event.preventDefault();
         void (event.shiftKey ? history.redo() : history.undo());
         return;
       }
-      if (primary && event.key.toLowerCase() === "s") {
+      if (primary && matchesLayoutKey(event, "s")) {
         event.preventDefault();
         toast.success(t("status.saved"));
         return;
       }
-      if (event.key === "Escape") clearSelection();
-      if (event.key.toLowerCase() === "f") fitView();
+      if (matchesLayoutKey(event, "Escape")) clearSelection();
+      if (matchesLayoutKey(event, "f")) fitView();
       if (!event.metaKey && !event.ctrlKey && !event.altKey) {
-        if (event.key.toLowerCase() === "i") {
+        if (matchesLayoutKey(event, "i")) {
           event.preventDefault();
           toggleInspector();
-        } else if (event.key === "-") {
+        } else if (matchesLayoutKey(event, "-")) {
           event.preventDefault();
           void flow.zoomOut();
-        } else if (event.key === "=" || event.key === "+") {
+        } else if (matchesLayoutKey(event, "=", "+")) {
           event.preventDefault();
           void flow.zoomIn();
         }
