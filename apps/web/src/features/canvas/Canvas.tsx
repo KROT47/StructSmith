@@ -81,6 +81,7 @@ interface CanvasProps {
   initialLocation?: ViewLocation;
   onOpenDetails: (elementId: string) => void;
   canOpenDetails: (elementId: string) => boolean;
+  onBack: () => void;
 }
 
 export function Canvas({
@@ -93,6 +94,7 @@ export function Canvas({
   initialLocation,
   onOpenDetails,
   canOpenDetails,
+  onBack,
 }: CanvasProps) {
   const { t } = useTranslation();
   const flow = useReactFlow();
@@ -1113,7 +1115,7 @@ export function Canvas({
         panOnScrollSpeed={1}
         onNodeContextMenu={onNodeContextMenu}
         onEdgeContextMenu={onEdgeContextMenu}
-        onPaneClick={() => {
+        onPaneClick={(event) => {
           setMenu(null);
           clearSelection();
           setNodes((current) =>
@@ -1122,6 +1124,14 @@ export function Canvas({
           setEdges((current) =>
             current.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)),
           );
+          if (
+            event.detail === 2 &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey &&
+            !event.shiftKey
+          )
+            onBack();
         }}
         onDelete={deleteSelection}
         selectionMode={SelectionMode.Partial}

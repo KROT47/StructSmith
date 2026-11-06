@@ -181,6 +181,15 @@ function StudioContent({
     setDetailElementId(null);
     onNavigate(workspaceId, target.viewId);
   };
+  const back = (): void => {
+    for (let index = navigation.back.length - 1; index >= 0; index -= 1) {
+      const entry = navigation.back[index];
+      if (entry && viewList.some((item) => item.id === entry.viewId)) {
+        goBack(index);
+        return;
+      }
+    }
+  };
   const openDetails = (elementId: string): void => {
     if (connectFrom) return;
     const element = elements.find((item) => item.id === elementId);
@@ -373,6 +382,7 @@ function StudioContent({
                       initialLocation={navigation.saved[view.data.id]}
                       onOpenDetails={openDetails}
                       canOpenDetails={canOpenDetails}
+                      onBack={back}
                     />
                   ) : (
                     <div

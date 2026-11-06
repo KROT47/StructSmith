@@ -18,7 +18,8 @@
     "seedDescription_few": "{{count}} istniejące elementy. Odznacz tę opcję, aby rozpocząć od pustego widoku.",
     "seedDescription_many": "{{count}} istniejących elementów. Odznacz tę opcję, aby rozpocząć od pustego widoku.",
     "seedDescription_other": "{{count}} istniejących elementów. Odznacz tę opcję, aby rozpocząć od pustego widoku.",
-    "doubleClick": "Dwukrotne kliknięcie systemu lub kontenera"
+    "doubleClick": "Dwukrotne kliknięcie systemu lub kontenera",
+    "doubleClickBackground": "Dwukrotne kliknięcie tła kanwy"
   },
   "common": {
     "add": "Dodaj",
