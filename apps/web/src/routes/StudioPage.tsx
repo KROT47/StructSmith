@@ -1,6 +1,16 @@
 import { detailViewKind, detailViewsFor } from "@structsmith/domain";
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type ReactNode,
+  type RefObject,
+  type SetStateAction,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
@@ -85,6 +95,25 @@ function useCollapsiblePanel(defaultSize: string) {
   return { panelRef, collapsed, syncCollapsed, toggle, applyCollapsed };
 }
 
+type FlowApi = ReturnType<typeof useReactFlow>;
+
+function DiagramHost({
+  flowRef,
+  children,
+}: {
+  flowRef: RefObject<FlowApi | null>;
+  children: ReactNode;
+}) {
+  const flow = useReactFlow();
+  useLayoutEffect(() => {
+    flowRef.current = flow;
+    return () => {
+      flowRef.current = null;
+    };
+  }, [flow, flowRef]);
+  return children;
+}
+
 export function StudioPage(props: StudioPageProps) {
   return <WorkspaceStudio key={props.workspaceId} {...props} />;
 }
@@ -101,14 +130,13 @@ function WorkspaceStudio(props: StudioPageProps) {
     setNewViewOpen(false);
   }, [resetHistory, clearSelection, setNewViewOpen]);
   return (
-    <ReactFlowProvider key={`${props.viewId ?? "initial"}:${navigationReset}`}>
-      <StudioContent
-        {...props}
-        navigation={navigation}
-        setNavigation={setNavigation}
-        resetNavigation={() => setNavigationReset((value) => value + 1)}
-      />
-    </ReactFlowProvider>
+    <StudioContent
+      {...props}
+      navigation={navigation}
+      setNavigation={setNavigation}
+      navigationReset={navigationReset}
+      resetNavigation={() => setNavigationReset((value) => value + 1)}
+    />
   );
 }
 
@@ -122,13 +150,15 @@ function StudioContent({
   navigation,
   setNavigation,
   resetNavigation,
+  navigationReset,
 }: StudioPageProps & {
   navigation: ViewNavigation;
   setNavigation: Dispatch<SetStateAction<ViewNavigation>>;
   resetNavigation: () => void;
+  navigationReset: number;
 }) {
   const { t } = useTranslation();
-  const flow = useReactFlow();
+  const flowRef = useRef<FlowApi | null>(null);
 
   const settings = useSettings();
   const workspaces = useWorkspaces();
@@ -192,14 +222,16 @@ function StudioContent({
   const viewList = useMemo(() => views.data ?? [], [views.data]);
   const activeView = view.data ?? viewList.find((item) => item.id === activeViewId) ?? null;
 
-  const currentLocation = () =>
-    activeViewId
+  const currentLocation = () => {
+    const viewport = flowRef.current?.getViewport();
+    return activeViewId && viewport
       ? {
           viewId: activeViewId,
-          viewport: flow.getViewport(),
+          viewport,
           selection: useEditorStore.getState().selection,
         }
       : null;
+  };
   const selectView = (nextViewId: string): void => {
     if (nextViewId === activeViewId) return;
     const current = currentLocation();
@@ -302,7 +334,9 @@ function StudioContent({
     });
   };
 
-  const fitView = (): void => void flow.fitView({ duration: 300, padding: 0.2 });
+  const fitView = (): void => {
+    void flowRef.current?.fitView({ duration: 300, padding: 0.2 });
+  };
 
   const showExplorerTab = (tab: "model" | "views"): void => {
     const panel = explorerPanel.panelRef.current;
@@ -380,10 +414,10 @@ function StudioContent({
           showExplorerTab("views");
         } else if (matchesLayoutKey(event, "-")) {
           event.preventDefault();
-          void flow.zoomOut();
+          void flowRef.current?.zoomOut();
         } else if (matchesLayoutKey(event, "=", "+")) {
           event.preventDefault();
-          void flow.zoomIn();
+          void flowRef.current?.zoomIn();
         }
       }
     };
@@ -466,47 +500,53 @@ function StudioContent({
                   back={navigation.back}
                   onBack={goBack}
                   onEditView={() => {
-                    flow.setNodes((nodes) =>
+                    flowRef.current?.setNodes((nodes) =>
                       nodes.map((node) => (node.selected ? { ...node, selected: false } : node)),
                     );
-                    flow.setEdges((edges) =>
+                    flowRef.current?.setEdges((edges) =>
                       edges.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)),
                     );
                     useEditorStore.getState().clearSelection();
                   }}
                 />
                 <div className="min-h-0 flex-1 bg-canvas">
-                  {view.data ? (
-                    <Canvas
-                      key={view.data.id}
-                      workspaceId={workspaceId}
-                      view={view.data}
-                      elements={elements}
-                      boundaries={boundaries}
-                      relationships={relationships}
-                      records={recordList}
-                      initialLocation={navigation.saved[view.data.id]}
-                      onOpenDetails={openDetails}
-                      canOpenDetails={canOpenDetails}
-                      onBack={back}
-                    />
-                  ) : (
-                    <div
-                      className="flex h-full flex-col items-center justify-center gap-1 text-center"
-                      role="status"
-                    >
-                      <p className="text-sm font-medium">
-                        {t(
-                          activeViewId && view.isPending ? "common.loading" : "explorer.emptyViews",
-                        )}
-                      </p>
-                      {!(activeViewId && view.isPending) && (
-                        <p className="max-w-xs text-xs text-muted-foreground">
-                          {t("canvas.emptyHint")}
-                        </p>
+                  <ReactFlowProvider key={`${activeViewId ?? "initial"}:${navigationReset}`}>
+                    <DiagramHost flowRef={flowRef}>
+                      {view.data ? (
+                        <Canvas
+                          key={view.data.id}
+                          workspaceId={workspaceId}
+                          view={view.data}
+                          elements={elements}
+                          boundaries={boundaries}
+                          relationships={relationships}
+                          records={recordList}
+                          initialLocation={navigation.saved[view.data.id]}
+                          onOpenDetails={openDetails}
+                          canOpenDetails={canOpenDetails}
+                          onBack={back}
+                        />
+                      ) : (
+                        <div
+                          className="flex h-full flex-col items-center justify-center gap-1 text-center"
+                          role="status"
+                        >
+                          <p className="text-sm font-medium">
+                            {t(
+                              activeViewId && view.isPending
+                                ? "common.loading"
+                                : "explorer.emptyViews",
+                            )}
+                          </p>
+                          {!(activeViewId && view.isPending) && (
+                            <p className="max-w-xs text-xs text-muted-foreground">
+                              {t("canvas.emptyHint")}
+                            </p>
+                          )}
+                        </div>
                       )}
-                    </div>
-                  )}
+                    </DiagramHost>
+                  </ReactFlowProvider>
                 </div>
                 <BottomPanel workspaceId={workspaceId} />
               </div>
