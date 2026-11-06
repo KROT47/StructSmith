@@ -47,6 +47,7 @@ interface TopBarProps {
   mcpReadOnly: boolean;
   onSelectWorkspace: (workspaceId: string) => void;
   onSelectView: (viewId: string) => void;
+  onDeleteView: () => void;
   onAutoLayout: (algorithm?: LayoutAlgorithm) => void;
   onFitView: () => void;
   onUndo: () => void;
@@ -143,6 +144,11 @@ export function TopBar(props: TopBarProps) {
               }
             >
               {t("reference.copyView")}
+            </DropdownMenuItem>
+          )}
+          {props.activeView && (
+            <DropdownMenuItem destructive onSelect={props.onDeleteView}>
+              {t("views.delete")}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onSelect={openNewView}>{t("topbar.newView")}</DropdownMenuItem>

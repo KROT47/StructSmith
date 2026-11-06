@@ -528,6 +528,7 @@
     "seed": "Zacznij od",
     "seedEmpty": "Pustego widoku",
     "seedAll": "Wszystkich elementów",
+    "delete": "Usuń widok",
     "deleteTitle": "Usunąć widok?",
     "deleteHint": "To usuwa widok i jego układ. Model pozostaje nietknięty."
   },

@@ -15,7 +15,7 @@ export function AskAgentButton({ reference }: { reference: AgentReferenceInput }
         variant="ghost"
         size="iconSm"
         aria-label={t("chat.askAbout")}
-        className="h-auto w-auto p-1 text-muted-foreground hover:text-foreground"
+        className="h-auto w-auto cursor-pointer p-1 text-muted-foreground hover:text-foreground"
         onClick={(event) => {
           event.stopPropagation();
           ask(reference);

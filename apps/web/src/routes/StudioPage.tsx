@@ -196,6 +196,25 @@ function StudioContent({
     setDetailElementId(null);
     onNavigate(workspaceId, nextViewId);
   };
+  const deleteActiveView = (): void => {
+    if (!activeViewId) return;
+    const index = viewList.findIndex((item) => item.id === activeViewId);
+    const next = viewList[index + 1] ?? viewList[index - 1] ?? null;
+    applyOperations.mutate(
+      {
+        label: t("views.deleteTitle"),
+        operations: [{ op: "deleteView", viewId: activeViewId }],
+      },
+      {
+        onSuccess: () => {
+          setNavigation(emptyNavigation());
+          clearSelection();
+          setDetailElementId(null);
+          onNavigate(workspaceId, next?.id ?? null);
+        },
+      },
+    );
+  };
   const goBack = (index: number): void => {
     const target = navigation.back[index];
     const current = currentLocation();
@@ -355,6 +374,7 @@ function StudioContent({
           mcpReadOnly={settings.data?.mcpReadOnly ?? false}
           onSelectWorkspace={(id) => onNavigate(id, null)}
           onSelectView={selectView}
+          onDeleteView={deleteActiveView}
           onAutoLayout={autoLayout}
           onFitView={fitView}
           onUndo={() => void history.undo()}

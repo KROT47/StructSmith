@@ -520,6 +520,7 @@
     "seed": "Start with",
     "seedEmpty": "An empty view",
     "seedAll": "All elements",
+    "delete": "Delete view",
     "deleteTitle": "Delete view?",
     "deleteHint": "This removes the view and its layout. The model is untouched."
   },

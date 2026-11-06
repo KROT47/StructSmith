@@ -1,5 +1,5 @@
 import type { ArchitectureElement, ArchitectureView, ViewKind } from "@structsmith/contracts";
-import { Layers, Plus, Trash2 } from "lucide-react";
+import { Layers, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useApplyOperations } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor";
-import { CopyReferenceButton } from "../reference/CopyReferenceButton";
+import { AskAgentButton } from "../chat/AskAgentButton";
 import { initialViewElementIds } from "./viewSeed";
 
 const VIEW_KINDS: ViewKind[] = [
@@ -92,12 +92,6 @@ export function ViewsPanel({
     );
   };
 
-  const remove = (viewId: string): void =>
-    applyOperations.mutate({
-      label: t("views.deleteTitle"),
-      operations: [{ op: "deleteView", viewId }],
-    });
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
@@ -124,7 +118,7 @@ export function ViewsPanel({
               onClick={() => onSelectView(view.id)}
               onKeyDown={(event) => event.key === "Enter" && onSelectView(view.id)}
               className={cn(
-                "group flex h-8 cursor-pointer items-center gap-2 rounded px-2 text-[12.5px] transition-colors hover:bg-accent",
+                "flex h-8 cursor-pointer items-center gap-2 rounded px-2 text-[12.5px] transition-colors hover:bg-accent",
                 view.id === activeViewId && "bg-accent",
               )}
             >
@@ -135,8 +129,7 @@ export function ViewsPanel({
                   {t(`viewKinds.${view.kind}`)}
                 </div>
               </div>
-              <CopyReferenceButton
-                className="hidden group-hover:block"
+              <AskAgentButton
                 reference={{
                   type: "view",
                   workspaceId,
@@ -145,16 +138,6 @@ export function ViewsPanel({
                   viewId: view.id,
                 }}
               />
-              <button
-                type="button"
-                className="hidden rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  remove(view.id);
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-              </button>
             </div>
           ))}
         </div>
