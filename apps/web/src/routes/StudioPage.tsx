@@ -273,6 +273,15 @@ function StudioContent({
       }
       if (event.key === "Escape") clearSelection();
       if (event.key.toLowerCase() === "f") fitView();
+      if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+        if (event.key === "-") {
+          event.preventDefault();
+          void flow.zoomOut();
+        } else if (event.key === "=" || event.key === "+") {
+          event.preventDefault();
+          void flow.zoomIn();
+        }
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);

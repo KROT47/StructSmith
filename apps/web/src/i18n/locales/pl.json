@@ -382,6 +382,8 @@
     "undo": "Cofnij",
     "redo": "Ponów",
     "fitView": "Dopasuj widok",
+    "zoomIn": "Powiększ",
+    "zoomOut": "Pomniejsz",
     "clearSelection": "Wyczyść zaznaczenie",
     "pan": "Przesuń kanwę",
     "zoom": "Zmień skalę",

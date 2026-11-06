@@ -28,6 +28,8 @@ export function KeyboardShortcutsDialog() {
     [t("shortcuts.undo"), `${primary} Z`],
     [t("shortcuts.redo"), `${primary} Shift Z`],
     [t("shortcuts.fitView"), "F"],
+    [t("shortcuts.zoomIn"), "="],
+    [t("shortcuts.zoomOut"), "-"],
     [t("shortcuts.clearSelection"), "Escape"],
     [t("shortcuts.pan"), t("shortcuts.scrollOrDrag")],
     [t("shortcuts.zoom"), t("shortcuts.pinchOrModifierScroll", { modifier: primary })],
