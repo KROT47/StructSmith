@@ -7,34 +7,23 @@ export interface ViewLocation {
   selection: Selection;
 }
 
+/** Cameras left behind while moving through the view tree, plus which view a descent started from. */
 export interface ViewNavigation {
-  back: ViewLocation[];
   saved: Record<string, ViewLocation>;
+  enteredFrom: Record<string, string>;
 }
 
-export const emptyNavigation = (): ViewNavigation => ({ back: [], saved: {} });
+export const emptyNavigation = (): ViewNavigation => ({ saved: {}, enteredFrom: {} });
 
-export function visitView(
-  state: ViewNavigation,
-  current: ViewLocation,
-  targetId: string,
-): ViewNavigation {
-  if (current.viewId === targetId) return state;
-  return {
-    back: [...state.back, current].slice(-50),
-    saved: { ...state.saved, [current.viewId]: current },
-  };
+export function rememberLocation(state: ViewNavigation, location: ViewLocation): ViewNavigation {
+  return { ...state, saved: { ...state.saved, [location.viewId]: location } };
 }
 
-export function returnToView(
+export function rememberDescent(
   state: ViewNavigation,
-  current: ViewLocation,
-  index: number,
+  fromId: string,
+  toId: string,
 ): ViewNavigation {
-  const target = state.back[index];
-  if (!target) return state;
-  return {
-    back: state.back.slice(0, index),
-    saved: { ...state.saved, [current.viewId]: current, [target.viewId]: target },
-  };
+  if (fromId === toId) return state;
+  return { ...state, enteredFrom: { ...state.enteredFrom, [toId]: fromId } };
 }

@@ -1,10 +1,16 @@
 import { expect, test } from "bun:test";
-import { detailViewElementIds, detailViewKind, detailViewsFor } from "@structsmith/domain";
+import {
+  ancestorViews,
+  detailViewElementIds,
+  detailViewKind,
+  detailViewsFor,
+  parentView,
+} from "@structsmith/domain";
 import {
   emptyNavigation,
-  returnToView,
+  rememberDescent,
+  rememberLocation,
   type ViewLocation,
-  visitView,
 } from "../apps/web/src/features/navigation/history";
 import { createTestContext } from "./helpers";
 
@@ -129,32 +135,79 @@ test("detail creation seeds one level and raises external dependencies to approp
   }
 });
 
-test("back and breadcrumb jumps restore the exact visit, including multi-selection and viewport", () => {
-  const a: ViewLocation = {
-    viewId: "a",
+test("moving up follows the view tree and keeps the camera that was left behind", () => {
+  const system = { id: "sys", kind: "softwareSystem" as const, parentId: null };
+  const api = { id: "api", kind: "container" as const, parentId: system.id };
+  const context = {
+    id: "context",
+    name: "Context",
+    kind: "systemContext" as const,
+    scopeElementId: system.id,
+    elements: [{ elementId: system.id }],
+  };
+  const containers = {
+    id: "containers",
+    name: "Containers",
+    kind: "container" as const,
+    scopeElementId: system.id,
+    elements: [{ elementId: api.id }],
+  };
+  const emptyContainers = {
+    id: "empty",
+    name: "A containers",
+    kind: "container" as const,
+    scopeElementId: system.id,
+    elements: [] as { elementId: string }[],
+  };
+  const alsoContainers = {
+    id: "also",
+    name: "Z containers",
+    kind: "container" as const,
+    scopeElementId: system.id,
+    elements: [{ elementId: api.id }],
+  };
+  const components = {
+    id: "components",
+    name: "Components",
+    kind: "component" as const,
+    scopeElementId: api.id,
+    elements: [] as { elementId: string }[],
+  };
+  const notes = {
+    id: "notes",
+    name: "Notes",
+    kind: "custom" as const,
+    scopeElementId: null,
+    elements: [] as { elementId: string }[],
+  };
+  const elements = [system, api];
+  const views = [context, containers, emptyContainers, components, notes];
+
+  expect(ancestorViews(components, views, elements).map((view) => view.id)).toEqual([
+    context.id,
+    containers.id,
+  ]);
+  expect(parentView(components, [context, emptyContainers, components], elements)?.id).toBe(
+    emptyContainers.id,
+  );
+  expect(
+    parentView(components, [containers, alsoContainers, components], elements, alsoContainers.id)
+      ?.id,
+  ).toBe(alsoContainers.id);
+  expect(parentView(components, [context, components], elements)?.id).toBe(context.id);
+  expect(parentView(containers, views, elements)?.id).toBe(context.id);
+  expect(parentView(context, views, elements)).toBeNull();
+  expect(parentView(notes, views, elements)).toBeNull();
+  expect(parentView(components, views, [{ ...api, parentId: null }])).toBeNull();
+
+  const left: ViewLocation = {
+    viewId: containers.id,
     viewport: { x: 73, y: -28, zoom: 1.3 },
     selection: { type: "elements", ids: ["x", "y"] },
   };
-  const b: ViewLocation = {
-    viewId: "b",
-    viewport: { x: -80, y: 40, zoom: 0.6 },
-    selection: { type: "relationship", id: "r" },
-  };
-  const c: ViewLocation = {
-    viewId: "c",
-    viewport: { x: 0, y: 0, zoom: 1 },
-    selection: { type: "none" },
-  };
-  let state = visitView(emptyNavigation(), a, "b");
-  expect(visitView(state, b, "b")).toBe(state);
-  state = visitView(state, b, "c");
-  const back = returnToView(state, c, 1);
-  expect(back.saved.b).toEqual(b);
-  expect(back.back).toEqual([a]);
-  const root = returnToView(state, c, 0);
-  expect(root.saved.a).toEqual(a);
-  expect(root.back).toEqual([]);
-  expect(root.saved.c).toEqual(c);
-  expect(returnToView(state, c, 100)).toBe(state);
-  expect(state.back).toEqual([a, b]);
+  let state = rememberLocation(emptyNavigation(), left);
+  state = rememberDescent(state, containers.id, components.id);
+  expect(state.saved[containers.id]).toEqual(left);
+  expect(state.enteredFrom[components.id]).toBe(containers.id);
+  expect(rememberDescent(state, components.id, components.id)).toBe(state);
 });

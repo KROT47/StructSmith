@@ -1,4 +1,4 @@
-import { detailViewKind, detailViewsFor } from "@structsmith/domain";
+import { ancestorViews, detailViewKind, detailViewsFor } from "@structsmith/domain";
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
 import {
   type Dispatch,
@@ -25,9 +25,9 @@ import { DetailNavigationContext } from "@/features/navigation/DetailNavigation"
 import { DetailViewDialog } from "@/features/navigation/DetailViewDialog";
 import {
   emptyNavigation,
-  returnToView,
+  rememberDescent,
+  rememberLocation,
   type ViewNavigation,
-  visitView,
 } from "@/features/navigation/history";
 import { ViewNavigationBar } from "@/features/navigation/ViewNavigationBar";
 import { BottomPanel } from "@/features/panels/BottomPanel";
@@ -120,7 +120,6 @@ export function StudioPage(props: StudioPageProps) {
 
 function WorkspaceStudio(props: StudioPageProps) {
   const [navigation, setNavigation] = useState(emptyNavigation);
-  const [navigationReset, setNavigationReset] = useState(0);
   const resetHistory = useHistoryStore((state) => state.reset);
   const clearSelection = useEditorStore((state) => state.clearSelection);
   const setNewViewOpen = useEditorStore((state) => state.setNewViewOpen);
@@ -129,15 +128,7 @@ function WorkspaceStudio(props: StudioPageProps) {
     clearSelection();
     setNewViewOpen(false);
   }, [resetHistory, clearSelection, setNewViewOpen]);
-  return (
-    <StudioContent
-      {...props}
-      navigation={navigation}
-      setNavigation={setNavigation}
-      navigationReset={navigationReset}
-      resetNavigation={() => setNavigationReset((value) => value + 1)}
-    />
-  );
+  return <StudioContent {...props} navigation={navigation} setNavigation={setNavigation} />;
 }
 
 function StudioContent({
@@ -149,13 +140,9 @@ function StudioContent({
   onGoHome,
   navigation,
   setNavigation,
-  resetNavigation,
-  navigationReset,
 }: StudioPageProps & {
   navigation: ViewNavigation;
   setNavigation: Dispatch<SetStateAction<ViewNavigation>>;
-  resetNavigation: () => void;
-  navigationReset: number;
 }) {
   const { t } = useTranslation();
   const flowRef = useRef<FlowApi | null>(null);
@@ -222,6 +209,10 @@ function StudioContent({
   const recordList = useMemo(() => records.data ?? [], [records.data]);
   const viewList = useMemo(() => views.data ?? [], [views.data]);
   const activeView = view.data ?? viewList.find((item) => item.id === activeViewId) ?? null;
+  const ancestors = useMemo(
+    () => (activeView ? ancestorViews(activeView, viewList, elements, navigation.enteredFrom) : []),
+    [activeView, viewList, elements, navigation.enteredFrom],
+  );
 
   const currentLocation = () => {
     const viewport = flowRef.current?.getViewport();
@@ -233,15 +224,20 @@ function StudioContent({
         }
       : null;
   };
-  const selectView = (nextViewId: string): void => {
+  const openView = (nextViewId: string, descend: boolean): void => {
     if (nextViewId === activeViewId) return;
     const current = currentLocation();
-    if (current) setNavigation((state) => visitView(state, current, nextViewId));
+    setNavigation((state) => {
+      const saved = current ? rememberLocation(state, current) : state;
+      return descend && activeViewId ? rememberDescent(saved, activeViewId, nextViewId) : saved;
+    });
     setRestoreViewport(false);
     clearSelection();
     setDetailElementId(null);
     onNavigate(workspaceId, nextViewId);
   };
+  const selectView = (nextViewId: string): void => openView(nextViewId, false);
+  const descendTo = (nextViewId: string): void => openView(nextViewId, true);
   const deleteActiveView = (): void => {
     if (!activeViewId) return;
     const index = viewList.findIndex((item) => item.id === activeViewId);
@@ -262,25 +258,18 @@ function StudioContent({
       },
     );
   };
-  const goBack = (index: number): void => {
-    const target = navigation.back[index];
+  const goUp = (targetId: string): void => {
+    if (!ancestors.some((view) => view.id === targetId)) return;
     const current = currentLocation();
-    if (!target || !current || !viewList.some((item) => item.id === target.viewId)) return;
-    setNavigation((state) => returnToView(state, current, index));
-    setRestoreViewport(true);
-    if (target.viewId === activeViewId) resetNavigation();
+    if (current) setNavigation((state) => rememberLocation(state, current));
+    setRestoreViewport(Boolean(navigation.saved[targetId]));
     clearSelection();
     setDetailElementId(null);
-    onNavigate(workspaceId, target.viewId);
+    onNavigate(workspaceId, targetId);
   };
   const back = (): void => {
-    for (let index = navigation.back.length - 1; index >= 0; index -= 1) {
-      const entry = navigation.back[index];
-      if (entry && viewList.some((item) => item.id === entry.viewId)) {
-        goBack(index);
-        return;
-      }
-    }
+    const parent = ancestors.at(-1);
+    if (parent) goUp(parent.id);
   };
   const openDetails = (elementId: string): void => {
     if (connectFrom) return;
@@ -288,7 +277,7 @@ function StudioContent({
     if (!element || !detailViewKind(element)) return;
     select({ type: "element", id: element.id });
     const candidates = detailViewsFor(element, viewList, activeViewId);
-    if (candidates.length === 1 && candidates[0]) selectView(candidates[0].id);
+    if (candidates.length === 1 && candidates[0]) descendTo(candidates[0].id);
     else if (
       candidates.length > 0 ||
       activeView?.scopeElementId !== element.id ||
@@ -500,9 +489,8 @@ function StudioContent({
                 <ViewNavigationBar
                   current={activeView}
                   elements={elements}
-                  views={viewList}
-                  back={navigation.back}
-                  onBack={goBack}
+                  ancestors={ancestors}
+                  onUp={goUp}
                   onEditView={() => {
                     flowRef.current?.setNodes((nodes) =>
                       nodes.map((node) => (node.selected ? { ...node, selected: false } : node)),
@@ -514,7 +502,7 @@ function StudioContent({
                   }}
                 />
                 <div className="min-h-0 flex-1 bg-canvas">
-                  <ReactFlowProvider key={`${activeViewId ?? "initial"}:${navigationReset}`}>
+                  <ReactFlowProvider key={activeViewId ?? "initial"}>
                     <DiagramHost flowRef={flowRef}>
                       {view.data ? (
                         <Canvas
@@ -604,7 +592,7 @@ function StudioContent({
             views={viewList}
             currentViewId={activeViewId}
             onClose={() => setDetailElementId(null)}
-            onOpenView={selectView}
+            onOpenView={descendTo}
           />
         )}
         <CommandPalette

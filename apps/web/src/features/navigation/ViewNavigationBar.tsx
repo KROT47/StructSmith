@@ -2,38 +2,31 @@ import type { ArchitectureElement, ArchitectureView } from "@structsmith/contrac
 import { ArrowLeft, ChevronRight, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import type { ViewLocation } from "./history";
 
 export function ViewNavigationBar({
   current,
   elements,
-  views,
-  back,
-  onBack,
+  ancestors,
+  onUp,
   onEditView,
 }: {
   current: ArchitectureView | null;
   elements: readonly ArchitectureElement[];
-  views: readonly ArchitectureView[];
-  back: readonly ViewLocation[];
-  onBack: (index: number) => void;
+  ancestors: readonly ArchitectureView[];
+  onUp: (viewId: string) => void;
   onEditView: () => void;
 }) {
   const { t } = useTranslation();
-  const trail = back.flatMap((entry, index) => {
-    const view = views.find((item) => item.id === entry.viewId);
-    return view ? [{ view, index }] : [];
-  });
+  const parent = ancestors.at(-1);
   const scope: string[] = [];
   const seen = new Set<string>();
-  let parent = elements.find((element) => element.id === current?.scopeElementId);
-  while (parent && !seen.has(parent.id)) {
-    seen.add(parent.id);
-    scope.unshift(parent.name);
-    const parentId = parent.parentId;
-    parent = elements.find((element) => element.id === parentId);
+  let scopeElement = elements.find((element) => element.id === current?.scopeElementId);
+  while (scopeElement && !seen.has(scopeElement.id)) {
+    seen.add(scopeElement.id);
+    scope.unshift(scopeElement.name);
+    const parentId = scopeElement.parentId;
+    scopeElement = elements.find((element) => element.id === parentId);
   }
-  const previous = trail.at(-1);
   return (
     <nav
       aria-label={t("navigation.title")}
@@ -42,19 +35,19 @@ export function ViewNavigationBar({
       <Button
         size="sm"
         variant="ghost"
-        disabled={!previous}
-        onClick={() => previous && onBack(previous.index)}
+        disabled={!parent}
+        onClick={() => parent && onUp(parent.id)}
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         {t("navigation.back")}
       </Button>
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto text-xs">
-        {trail.map(({ view, index }) => (
-          <span key={`${view.id}-${index}`} className="flex shrink-0 items-center gap-1">
+        {ancestors.map((view) => (
+          <span key={view.id} className="flex shrink-0 items-center gap-1">
             <button
               type="button"
               className="max-w-40 truncate rounded px-1 py-1 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => onBack(index)}
+              onClick={() => onUp(view.id)}
               title={view.name}
             >
               {view.name}
