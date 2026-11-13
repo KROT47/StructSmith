@@ -3,7 +3,7 @@ import type {
   ArchitectureRelationship,
   ViewKind,
 } from "@structsmith/contracts";
-import { detailViewsFor } from "./detail-views";
+import { ancestorViews, detailViewsFor } from "./detail-views";
 
 export interface ResolvedRelationship {
   /** Stable id: the relationship id for direct edges, a derived key otherwise. */
@@ -14,8 +14,9 @@ export interface ResolvedRelationship {
   /** True when the edge stands in for relationships between hidden descendants. */
   implied: boolean;
   /**
-   * Descriptions of same-direction relationships drawn on a view one level
-   * below this one. Hidden children that are not on such a view do not contribute.
+   * Descriptions of same-direction relationships drawn on a view below this
+   * one. A nested relationship already covered by the level in between does
+   * not contribute, and neither does a child that no lower view shows.
    */
   derivedDescription: string | null;
 }
@@ -36,10 +37,13 @@ export interface DiagramViewRef {
  * on the view are lifted to their nearest visible ancestor and merged — the
  * same rule Structurizr calls "implied relationships".
  *
- * A relationship drawn on a view one level below is not drawn again when this
+ * A relationship drawn on a view below this one is not drawn again when this
  * view already has the same direction. Its description is kept on the visible
- * relationship as `derivedDescription`. Children that are only in the model,
- * and are not placed on that lower view, stay ordinary implied edges.
+ * relationship as `derivedDescription`. That includes every deeper view, not
+ * only the next level, except a relationship already represented by the level
+ * in between. A relationship recorded on a higher view is not drawn again
+ * further down. Children that are only in the model, and are not placed on a
+ * lower view, stay ordinary implied edges.
  */
 export function resolveRelationshipsForView(
   elements: readonly ArchitectureElement[],
@@ -48,6 +52,7 @@ export function resolveRelationshipsForView(
   diagram?: { viewId: string; views: readonly DiagramViewRef[] },
 ): ResolvedRelationship[] {
   const byId = new Map(elements.map((element) => [element.id, element]));
+  const placement = diagram ? relationshipPlacement(diagram, elements) : emptyPlacement();
 
   const nearestVisible = (elementId: string): string | null => {
     let current: string | null = elementId;
@@ -63,6 +68,14 @@ export function resolveRelationshipsForView(
   const merged = new Map<string, ResolvedRelationship>();
 
   for (const relationship of relationships) {
+    // Recorded on a view above this one. The lower diagram keeps its own arrow.
+    if (
+      placement.definedAbove.has(relationship.id) &&
+      !placement.definedHere.has(relationship.id)
+    ) {
+      continue;
+    }
+
     const source = nearestVisible(relationship.sourceElementId);
     const target = nearestVisible(relationship.targetElementId);
     if (!source || !target || source === target) continue;
@@ -91,7 +104,104 @@ export function resolveRelationshipsForView(
     byId,
     diagram ? relationshipsOnLowerViews(elements, relationships, visibleIds, diagram) : new Set(),
   );
+  absorbRecordedDuplicates(merged, placement.definedHere, placement.definedBelow);
   return [...merged.values()];
+}
+
+const emptyPlacement = (): RelationshipPlacement => ({
+  definedHere: new Set(),
+  definedBelow: new Set(),
+  definedAbove: new Set(),
+});
+
+interface RelationshipPlacement {
+  /** Shown on the view being resolved. */
+  definedHere: Set<string>;
+  /** Shown on any view below this one. */
+  definedBelow: Set<string>;
+  /** Recorded on a view above this one, hidden or not. */
+  definedAbove: Set<string>;
+}
+
+/** Where each relationship was actually drawn, walking the whole view hierarchy. */
+function relationshipPlacement(
+  diagram: { viewId: string; views: readonly DiagramViewRef[] },
+  elements: readonly ArchitectureElement[],
+): RelationshipPlacement {
+  const current = diagram.views.find((view) => view.id === diagram.viewId);
+  if (!current) return emptyPlacement();
+
+  const ancestorIds = new Set(
+    ancestorViews(current, diagram.views, elements).map((view) => view.id),
+  );
+  const definedHere = shownRelationshipIds(current);
+  const definedAbove = new Set<string>();
+  const definedBelow = new Set<string>();
+  for (const view of diagram.views) {
+    if (ancestorIds.has(view.id)) {
+      for (const entry of view.relationships) definedAbove.add(entry.relationshipId);
+      continue;
+    }
+    if (view.id === current.id) continue;
+    const above = ancestorViews(view, diagram.views, elements);
+    if (!above.some((ancestor) => ancestor.id === current.id)) continue;
+    for (const id of shownRelationshipIds(view)) definedBelow.add(id);
+  }
+  return { definedHere, definedBelow, definedAbove };
+}
+
+function shownRelationshipIds(view: DiagramViewRef): Set<string> {
+  return new Set(
+    view.relationships.filter((entry) => !entry.hidden).map((entry) => entry.relationshipId),
+  );
+}
+
+/**
+ * Two direct arrows between the same visible elements collapse when one of
+ * them was drawn on a deeper view. The arrow recorded on this view stays, and
+ * the deeper description becomes its derived description.
+ */
+function absorbRecordedDuplicates(
+  merged: Map<string, ResolvedRelationship>,
+  definedHere: ReadonlySet<string>,
+  definedBelow: ReadonlySet<string>,
+): void {
+  if (definedBelow.size === 0) return;
+
+  const directByDirection = new Map<string, ResolvedRelationship[]>();
+  for (const edge of merged.values()) {
+    if (edge.implied) continue;
+    const key = `${edge.sourceElementId}->${edge.targetElementId}`;
+    const group = directByDirection.get(key);
+    if (group) group.push(edge);
+    else directByDirection.set(key, [edge]);
+  }
+
+  for (const group of directByDirection.values()) {
+    const kept = group.filter((edge) =>
+      edge.relationships.some(
+        (relationship) => definedHere.has(relationship.id) || !definedBelow.has(relationship.id),
+      ),
+    );
+    const absorbed = group.filter((edge) => !kept.includes(edge));
+    if (kept.length === 0 || absorbed.length === 0) continue;
+    const derived = derivedDescriptionFrom(absorbed.flatMap((edge) => edge.relationships));
+    for (const edge of kept)
+      edge.derivedDescription = mergeDerived(edge.derivedDescription, derived);
+    for (const edge of absorbed) merged.delete(edge.id);
+  }
+}
+
+function mergeDerived(current: string | null, extra: string | null): string | null {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const description of [...(current?.split(";\n") ?? []), ...(extra?.split(";\n") ?? [])]) {
+    const text = description.trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    parts.push(text);
+  }
+  return parts.length > 0 ? parts.join(";\n") : null;
 }
 
 /**

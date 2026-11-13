@@ -448,4 +448,152 @@ describe("duplicate relationships on a diagram", () => {
 
     close();
   });
+
+  test("a same-direction relationship recorded on any deeper view folds upward and stays off the views above it", () => {
+    const { services, close } = createTestContext();
+    const workspace = createWorkspace(services, "Log manager");
+    const darvis = services.elements.create(workspace.id, {
+      kind: "softwareSystem",
+      name: "Darvis",
+    }).result;
+    const runtime = services.elements.create(workspace.id, {
+      kind: "softwareSystem",
+      name: "AI Agent Runtime",
+    }).result;
+    const worker = services.elements.create(workspace.id, {
+      kind: "container",
+      parentId: darvis.id,
+      name: "Darvis Worker",
+    }).result;
+    const logs = services.elements.create(workspace.id, {
+      kind: "container",
+      parentId: darvis.id,
+      name: "Background Log Manager",
+    }).result;
+    const launcher = services.elements.create(workspace.id, {
+      kind: "component",
+      parentId: worker.id,
+      name: "Agent Launcher",
+    }).result;
+
+    const direct = services.relationships.create(workspace.id, {
+      sourceElementId: darvis.id,
+      targetElementId: runtime.id,
+      description: "Передаёт задания для выполнения ролей",
+    }).result;
+    const throughWorker = services.relationships.create(workspace.id, {
+      sourceElementId: worker.id,
+      targetElementId: runtime.id,
+      description: "Передаёт задания ролям",
+    }).result;
+    const fromContainers = services.relationships.create(workspace.id, {
+      sourceElementId: runtime.id,
+      targetElementId: logs.id,
+      description: null,
+    }).result;
+    const fromComponents = services.relationships.create(workspace.id, {
+      sourceElementId: runtime.id,
+      targetElementId: logs.id,
+      description: "Читает технический журнал задачи",
+    }).result;
+    const fromTwoLevelsDown = services.relationships.create(workspace.id, {
+      sourceElementId: darvis.id,
+      targetElementId: runtime.id,
+      description: "Запускает роль",
+    }).result;
+    const launcherRel = services.relationships.create(workspace.id, {
+      sourceElementId: launcher.id,
+      targetElementId: runtime.id,
+      description: "Передаёт задание, инструкции роли",
+    }).result;
+
+    const context = services.views.create(workspace.id, {
+      name: "System Context",
+      kind: "systemContext",
+      scopeElementId: darvis.id,
+      elementIds: [darvis.id, runtime.id],
+    }).result;
+    const containers = services.views.create(workspace.id, {
+      name: "System Containers",
+      kind: "container",
+      scopeElementId: darvis.id,
+      elementIds: [worker.id, logs.id, runtime.id],
+    }).result;
+    const components = services.views.create(workspace.id, {
+      name: "Darvis Worker Components",
+      kind: "component",
+      scopeElementId: worker.id,
+      elementIds: [launcher.id, runtime.id, logs.id, darvis.id],
+    }).result;
+
+    const record = (viewId: string, relationshipId: string) => {
+      services.views.saveLayout(workspace.id, viewId, [], [{ relationshipId }]);
+    };
+    record(context.id, direct.id);
+    record(containers.id, fromContainers.id);
+    record(containers.id, throughWorker.id);
+    record(components.id, fromComponents.id);
+    record(components.id, fromTwoLevelsDown.id);
+    record(components.id, launcherRel.id);
+
+    const document = services.model.getDocument(workspace.id);
+    const contextView = document.views.find((view) => view.id === context.id);
+    const containerView = document.views.find((view) => view.id === containers.id);
+    const componentView = document.views.find((view) => view.id === components.id);
+    if (!contextView || !containerView || !componentView) throw new Error("Missing views");
+
+    const contextEdges = edgesOf(document, contextView);
+    const towardRuntime = contextEdges.filter(
+      (edge) => edge.sourceElementId === darvis.id && edge.targetElementId === runtime.id,
+    );
+    expect(towardRuntime.filter((edge) => !edge.implied)).toHaveLength(1);
+    const contextArrow = towardRuntime.find((edge) => !edge.implied);
+    if (!contextArrow) throw new Error("Missing context arrow");
+    expect(contextArrow.relationships.map((item) => item.id)).toEqual([direct.id]);
+    expect(new Set(contextArrow.derivedDescription?.split(";\n"))).toEqual(
+      new Set(["Передаёт задания ролям", "Запускает роль"]),
+    );
+    expect(contextArrow.derivedDescription).not.toContain("инструкции роли");
+    expect(
+      contextEdges.some((edge) => edge.relationships.some((item) => item.id === launcherRel.id)),
+    ).toBe(false);
+
+    const containerEdges = edgesOf(document, containerView);
+    const toLogs = containerEdges.filter(
+      (edge) => edge.sourceElementId === runtime.id && edge.targetElementId === logs.id,
+    );
+    expect(toLogs).toHaveLength(1);
+    const containerArrow = toLogs[0];
+    if (!containerArrow) throw new Error("Missing container arrow");
+    expect(containerArrow.implied).toBe(false);
+    expect(containerArrow.relationships.map((item) => item.id)).toEqual([fromContainers.id]);
+    expect(containerArrow.derivedDescription).toBe("Читает технический журнал задачи");
+    expect(edgeLabel(containerArrow)).toBe("Читает технический журнал задачи");
+
+    const componentEdges = edgesOf(document, componentView);
+    const componentLogs = componentEdges.filter(
+      (edge) => edge.sourceElementId === runtime.id && edge.targetElementId === logs.id,
+    );
+    expect(componentLogs).toHaveLength(1);
+    expect(componentLogs[0]?.relationships.map((item) => item.id)).toEqual([fromComponents.id]);
+    expect(componentLogs[0]?.derivedDescription).toBeNull();
+    expect(edgeLabel(componentLogs[0] as ResolvedRelationship)).toBe(
+      "Читает технический журнал задачи",
+    );
+    expect(
+      componentEdges.some((edge) =>
+        edge.relationships.some((item) => item.id === fromContainers.id),
+      ),
+    ).toBe(false);
+    expect(
+      componentEdges.some((edge) => edge.relationships.some((item) => item.id === direct.id)),
+    ).toBe(false);
+    const deepArrow = componentEdges.find((edge) =>
+      edge.relationships.some((item) => item.id === fromTwoLevelsDown.id),
+    );
+    expect(deepArrow?.implied).toBe(false);
+    expect(edgeLabel(deepArrow as ResolvedRelationship)).toBe("Запускает роль");
+
+    close();
+  });
 });
