@@ -27,7 +27,12 @@ import type {
 import { ERROR_CODES, ViewRelationshipPatchSchema } from "@structsmith/contracts";
 import { badRequest, DomainError, ruleViolation } from "./errors";
 import { createId, nowIso, uniqueKey } from "./ids";
-import { edgeLabel, resolveRelationshipsForView } from "./implied";
+import {
+  type DiagramViewRef,
+  edgeLabel,
+  emptyRelationshipsFedBy,
+  resolveRelationshipsForView,
+} from "./implied";
 import { computeLayout, estimateElementSize } from "./layout";
 import type { Repositories } from "./ports";
 import { checkParent, descendantsOf, wouldCreateCycle } from "./rules";
@@ -452,11 +457,22 @@ export function updateRelationship(
   return next;
 }
 
+function diagramViews(repos: Repositories, workspaceId: string): DiagramViewRef[] {
+  return repos.views.listByWorkspace(workspaceId).map((view) => ({
+    id: view.id,
+    name: view.name,
+    kind: view.kind,
+    scopeElementId: view.scopeElementId,
+    elements: repos.views.listElements(view.id),
+    relationships: repos.views.listRelationships(view.id),
+  }));
+}
+
 export function deleteRelationship(
   repos: Repositories,
   workspace: Workspace,
   relationshipId: string,
-): void {
+): string[] {
   const current = repos.relationships.findById(relationshipId);
   if (!current || current.workspaceId !== workspace.id) {
     throw new DomainError(
@@ -465,8 +481,20 @@ export function deleteRelationship(
       404,
     );
   }
-  repos.views.removeRelationshipEverywhere(relationshipId);
-  repos.relationships.delete(relationshipId);
+
+  // A higher view may keep an empty arrow only so it can show this description.
+  const carriers = emptyRelationshipsFedBy(
+    repos.elements.listByWorkspace(workspace.id),
+    repos.relationships.listByWorkspace(workspace.id),
+    diagramViews(repos, workspace.id),
+    relationshipId,
+  );
+  const removed = [relationshipId, ...carriers.filter((id) => id !== relationshipId)];
+  for (const id of removed) {
+    repos.views.removeRelationshipEverywhere(id);
+    repos.relationships.delete(id);
+  }
+  return removed;
 }
 
 /* ------------------------------------------------------------------ */

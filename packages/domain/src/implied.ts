@@ -25,6 +25,11 @@ export interface ResolvedRelationship {
    * Further lines from deeper views stay on the label and do not replace it.
    */
   derivedFrom: DerivedRelationshipSource | null;
+  /**
+   * Relationships whose descriptions were folded into `derivedDescription`.
+   * An empty relationship on this edge is only a carrier for these.
+   */
+  derivedContributorIds: string[];
 }
 
 /** Where the first line of a derived description is drawn. */
@@ -109,6 +114,7 @@ export function resolveRelationshipsForView(
       implied: !direct,
       derivedDescription: null,
       derivedFrom: null,
+      derivedContributorIds: [],
     });
   }
 
@@ -253,6 +259,17 @@ function primaryDerivedSource(
   return null;
 }
 
+function descriptionContributorIds(relationships: readonly ArchitectureRelationship[]): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const relationship of relationships) {
+    if (!relationship.description?.trim() || seen.has(relationship.id)) continue;
+    seen.add(relationship.id);
+    ids.push(relationship.id);
+  }
+  return ids;
+}
+
 function applyDerivedDescription(
   edge: ResolvedRelationship,
   relationships: readonly ArchitectureRelationship[],
@@ -264,6 +281,41 @@ function applyDerivedDescription(
     edge.derivedFrom = primaryDerivedSource(relationships, viewByRelationship);
   }
   edge.derivedDescription = mergeDerived(edge.derivedDescription, text);
+  const seen = new Set(edge.derivedContributorIds);
+  for (const id of descriptionContributorIds(relationships)) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    edge.derivedContributorIds.push(id);
+  }
+}
+
+/**
+ * Empty relationships that show `relationshipId`'s description on a higher
+ * view. They have no text of their own; deleting the source leaves them blank.
+ */
+export function emptyRelationshipsFedBy(
+  elements: readonly ArchitectureElement[],
+  relationships: readonly ArchitectureRelationship[],
+  views: readonly DiagramViewRef[],
+  relationshipId: string,
+): string[] {
+  const carriers = new Set<string>();
+  for (const view of views) {
+    const visibleIds = new Set(
+      view.elements.filter((entry) => !entry.hidden).map((entry) => entry.elementId),
+    );
+    for (const edge of resolveRelationshipsForView(elements, relationships, visibleIds, {
+      viewId: view.id,
+      views,
+    })) {
+      if (!edge.derivedContributorIds.includes(relationshipId)) continue;
+      for (const relationship of edge.relationships) {
+        if (relationship.id === relationshipId || relationship.description?.trim()) continue;
+        carriers.add(relationship.id);
+      }
+    }
+  }
+  return [...carriers];
 }
 
 function absorbRecordedDuplicates(

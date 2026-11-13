@@ -40,6 +40,7 @@ export function applyOperations(
   const refs = new RefTable();
   const applied: Applied[] = [];
   const warnings: string[] = [];
+  const removedRelationships = new Set<string>();
 
   for (const operation of operations) {
     switch (operation.op) {
@@ -148,7 +149,13 @@ export function applyOperations(
       }
       case "deleteRelationship": {
         const id = refs.resolve(operation.relationshipId);
-        engine.deleteRelationship(repos, workspace, id);
+        if (removedRelationships.has(id)) {
+          applied.push({ op: operation.op, id });
+          break;
+        }
+        for (const removedId of engine.deleteRelationship(repos, workspace, id)) {
+          removedRelationships.add(removedId);
+        }
         applied.push({ op: operation.op, id });
         break;
       }
