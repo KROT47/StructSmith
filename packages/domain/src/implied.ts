@@ -88,6 +88,7 @@ export function resolveRelationshipsForView(
 
   absorbDerivedRelationships(
     merged,
+    byId,
     diagram ? relationshipsOnLowerViews(elements, relationships, visibleIds, diagram) : new Set(),
   );
   return [...merged.values()];
@@ -133,10 +134,14 @@ function relationshipsOnLowerViews(
 /**
  * When this view already shows a relationship in a direction, hide the
  * same-direction relationship that is drawn on the view one level below and
- * keep its description on the direct edge. Other lifted relationships stay.
+ * keep its description on the direct edge. A deeper relationship nested inside
+ * one of those is the same arrow seen from further down, so it does not draw a
+ * second line and does not add its text here. A peer the lower view does not
+ * show stays an ordinary implied edge.
  */
 function absorbDerivedRelationships(
   merged: Map<string, ResolvedRelationship>,
+  byId: ReadonlyMap<string, ArchitectureElement>,
   shownOnLowerView: ReadonlySet<string>,
 ): void {
   if (shownOnLowerView.size === 0) return;
@@ -162,12 +167,41 @@ function absorbDerivedRelationships(
     const derivedDescription = derivedDescriptionFrom(fromLowerView);
     for (const shown of direct) shown.derivedDescription = derivedDescription;
     const remaining = edge.relationships.filter(
-      (relationship) => !shownOnLowerView.has(relationship.id),
+      (relationship) =>
+        !shownOnLowerView.has(relationship.id) && !refinesShown(byId, fromLowerView, relationship),
     );
     if (remaining.length === 0) absorbed.push(id);
     else edge.relationships = remaining;
   }
   for (const id of absorbed) merged.delete(id);
+}
+
+function isInside(
+  byId: ReadonlyMap<string, ArchitectureElement>,
+  ancestorId: string,
+  elementId: string,
+): boolean {
+  let current: string | null = elementId;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    if (current === ancestorId) return true;
+    seen.add(current);
+    current = byId.get(current)?.parentId ?? null;
+  }
+  return false;
+}
+
+/** True when both ends sit inside the relationship already shown one level down. */
+function refinesShown(
+  byId: ReadonlyMap<string, ArchitectureElement>,
+  shown: readonly ArchitectureRelationship[],
+  relationship: ArchitectureRelationship,
+): boolean {
+  return shown.some(
+    (outer) =>
+      isInside(byId, outer.sourceElementId, relationship.sourceElementId) &&
+      isInside(byId, outer.targetElementId, relationship.targetElementId),
+  );
 }
 
 function derivedDescriptionFrom(relationships: readonly ArchitectureRelationship[]): string | null {

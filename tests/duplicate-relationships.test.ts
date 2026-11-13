@@ -336,13 +336,115 @@ describe("duplicate relationships on a diagram", () => {
     expect(after.some((edge) => edge.relationships.some((item) => item.id === invoices.id))).toBe(
       false,
     );
+    // Gateway sits inside API, whose relationship the container view already
+    // shows, so it must not draw a second Portal → Billing arrow. Its text
+    // stays on the container view, not in this derived description.
+    expect(absorbed.derivedDescription).not.toContain("Publishes line items");
     expect(
-      after.some(
-        (edge) =>
-          edge.implied &&
-          edge.relationships.some((item) => item.description === "Publishes line items"),
+      after.some((edge) =>
+        edge.relationships.some((item) => item.description === "Publishes line items"),
       ),
-    ).toBe(true);
+    ).toBe(false);
+    const containerView = withContainer.views.find((view) => view.name === "Containers");
+    if (!containerView) throw new Error("Missing container view");
+    const containerEdges = edgesOf(withContainer, containerView);
+    expect(edgeLabel(edgeBetween(containerEdges, api.id, billing.id))).toBe(
+      "Publishes line items;\nPublishes invoice status",
+    );
+
+    close();
+  });
+
+  test("a nested component does not add a second arrow beside the level-down relationship", () => {
+    const { services, close } = createTestContext();
+    const workspace = createWorkspace(services, "Darvis shape");
+    const darvis = services.elements.create(workspace.id, {
+      kind: "softwareSystem",
+      name: "Darvis",
+    }).result;
+    const runtime = services.elements.create(workspace.id, {
+      kind: "softwareSystem",
+      name: "AI Agent Runtime",
+    }).result;
+    const worker = services.elements.create(workspace.id, {
+      kind: "container",
+      parentId: darvis.id,
+      name: "Darvis Worker",
+    }).result;
+    const launcher = services.elements.create(workspace.id, {
+      kind: "component",
+      parentId: worker.id,
+      name: "Agent Launcher",
+    }).result;
+    const peer = services.elements.create(workspace.id, {
+      kind: "container",
+      parentId: darvis.id,
+      name: "Peer",
+    }).result;
+    const direct = services.relationships.create(workspace.id, {
+      sourceElementId: darvis.id,
+      targetElementId: runtime.id,
+      description: "Передаёт задания для выполнения ролей",
+    }).result;
+    const throughWorker = services.relationships.create(workspace.id, {
+      sourceElementId: worker.id,
+      targetElementId: runtime.id,
+      description: "Передаёт задания ролям",
+    }).result;
+    services.relationships.create(workspace.id, {
+      sourceElementId: launcher.id,
+      targetElementId: runtime.id,
+      description: "Передаёт задание, инструкции роли и параметры запуска",
+    });
+    services.relationships.create(workspace.id, {
+      sourceElementId: peer.id,
+      targetElementId: runtime.id,
+      description: "Шлёт служебный сигнал",
+    });
+    const context = services.views.create(workspace.id, {
+      name: "System Context",
+      kind: "systemContext",
+      scopeElementId: darvis.id,
+      elementIds: [darvis.id, runtime.id],
+    }).result;
+    services.views.create(workspace.id, {
+      name: "System Containers",
+      kind: "container",
+      scopeElementId: darvis.id,
+      elementIds: [worker.id, runtime.id],
+    });
+    services.views.create(workspace.id, {
+      name: "Darvis Worker Components",
+      kind: "component",
+      scopeElementId: worker.id,
+      elementIds: [launcher.id, runtime.id],
+    });
+
+    const document = services.model.getDocument(workspace.id);
+    const contextView = document.views.find((view) => view.id === context.id);
+    if (!contextView) throw new Error("Missing context view");
+    const edges = edgesOf(document, contextView);
+    const towardRuntime = edges.filter(
+      (edge) => edge.sourceElementId === darvis.id && edge.targetElementId === runtime.id,
+    );
+    const directArrows = towardRuntime.filter((edge) => !edge.implied);
+    expect(directArrows).toHaveLength(1);
+    const arrow = directArrows[0];
+    if (!arrow) throw new Error("Missing Darvis arrow");
+    expect(arrow.implied).toBe(false);
+    expect(arrow.relationships.map((item) => item.id)).toEqual([direct.id]);
+    expect(arrow.derivedDescription).toBe("Передаёт задания ролям");
+    expect(edgeLabel(arrow)).toBe("Передаёт задания ролям;\nПередаёт задания для выполнения ролей");
+    expect(edgeLabel(arrow)).not.toContain("инструкции роли");
+    expect(
+      edges.some((edge) => edge.relationships.some((item) => item.id === throughWorker.id)),
+    ).toBe(false);
+    const peerEdge = edges.find((edge) =>
+      edge.relationships.some((item) => item.description === "Шлёт служебный сигнал"),
+    );
+    expect(peerEdge?.implied).toBe(true);
+    expect(peerEdge?.sourceElementId).toBe(darvis.id);
+    expect(peerEdge?.targetElementId).toBe(runtime.id);
 
     close();
   });
