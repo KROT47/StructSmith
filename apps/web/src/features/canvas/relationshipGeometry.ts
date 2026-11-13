@@ -1,10 +1,49 @@
-import type { AttachmentSide, ControlPoint } from "@structsmith/contracts";
+import type { AttachmentAnchor, AttachmentSide, ControlPoint } from "@structsmith/contracts";
 import { Position } from "@xyflow/react";
 
-export const sideForHandle = (handle: string | null | undefined): AttachmentSide | null =>
-  (({ t: "top", r: "right", b: "bottom", l: "left" })[handle ?? ""] as
-    | AttachmentSide
-    | undefined) ?? null;
+/** Points along each side of a card, as a fraction of that side's length. */
+export const ATTACHMENT_ANCHORS = [0.25, 0.5, 0.75] as const satisfies readonly AttachmentAnchor[];
+
+const HANDLE_SIDES = { t: "top", r: "right", b: "bottom", l: "left" } as const;
+const SIDE_HANDLES = { top: "t", right: "r", bottom: "b", left: "l" } as const;
+
+/** Center stays unsuffixed so existing edges keep the ids `t`, `r`, `b` and `l`. */
+export const handleId = (side: AttachmentSide, anchor: number | null | undefined): string => {
+  const base = SIDE_HANDLES[side];
+  if (anchor === 0.25) return `${base}-25`;
+  if (anchor === 0.75) return `${base}-75`;
+  return base;
+};
+
+export const sideForHandle = (handle: string | null | undefined): AttachmentSide | null => {
+  const side = HANDLE_SIDES[handle?.[0] as keyof typeof HANDLE_SIDES];
+  if (!side) return null;
+  const suffix = handle?.slice(1);
+  return suffix === "" || suffix === "-25" || suffix === "-75" ? side : null;
+};
+
+/** Null means the center point, including the unsuffixed handle ids. */
+export const anchorForHandle = (handle: string | null | undefined): 0.25 | 0.75 | null => {
+  if (!sideForHandle(handle)) return null;
+  if (handle?.endsWith("-25")) return 0.25;
+  if (handle?.endsWith("-75")) return 0.75;
+  return null;
+};
+
+export const attachmentFromHandles = (
+  sourceHandle: string | null | undefined,
+  targetHandle: string | null | undefined,
+): {
+  sourceSide: AttachmentSide | null;
+  targetSide: AttachmentSide | null;
+  sourceAnchor: 0.25 | 0.75 | null;
+  targetAnchor: 0.25 | 0.75 | null;
+} => ({
+  sourceSide: sideForHandle(sourceHandle),
+  targetSide: sideForHandle(targetHandle),
+  sourceAnchor: anchorForHandle(sourceHandle),
+  targetAnchor: anchorForHandle(targetHandle),
+});
 
 /** Arc-length placement for the M/L/Q/C paths produced by React Flow. */
 export function pointOnRelationshipPath(path: string, fraction: number): ControlPoint {

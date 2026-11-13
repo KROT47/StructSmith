@@ -197,6 +197,7 @@
   pointer-events: none;
 }
 .react-flow__handle {
+  z-index: 1;
   background: var(--muted-foreground);
   border: 1px solid var(--background);
   width: 7px;

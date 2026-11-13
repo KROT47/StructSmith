@@ -55,6 +55,42 @@ function NumberField({
   );
 }
 
+function AnchorChoice({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number | null | undefined;
+  onChange: (value: 0.25 | 0.75 | null) => void;
+}) {
+  const { t } = useTranslation();
+  const id = useId();
+  const selected = value === 0.25 ? "anchor25" : value === 0.75 ? "anchor75" : "anchor50";
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id}>{label}</Label>
+      <Select
+        value={selected}
+        onValueChange={(next) =>
+          onChange(next === "anchor25" ? 0.25 : next === "anchor75" ? 0.75 : null)
+        }
+      >
+        <SelectTrigger id={id}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(["anchor25", "anchor50", "anchor75"] as const).map((option) => (
+            <SelectItem key={option} value={option}>
+              {t(`relationshipPresentation.options.${option}`)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 function Choice({
   label,
   value,
@@ -140,6 +176,16 @@ export function RelationshipPresentation({
           value={placement?.targetSide}
           options={["top", "right", "bottom", "left"]}
           onChange={(targetSide) => patch({ targetSide: targetSide as AttachmentSide | null })}
+        />
+        <AnchorChoice
+          label={t("relationshipPresentation.sourceAnchor")}
+          value={placement?.sourceAnchor}
+          onChange={(sourceAnchor) => patch({ sourceAnchor })}
+        />
+        <AnchorChoice
+          label={t("relationshipPresentation.targetAnchor")}
+          value={placement?.targetAnchor}
+          onChange={(targetAnchor) => patch({ targetAnchor })}
         />
       </div>
       <p className="text-[11px] leading-snug text-muted-foreground">
@@ -256,6 +302,8 @@ export function RelationshipPresentation({
           patch({
             sourceSide: null,
             targetSide: null,
+            sourceAnchor: null,
+            targetAnchor: null,
             color: null,
             strokeWidth: null,
             lineStyle: null,

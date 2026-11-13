@@ -15,6 +15,7 @@ import {
   resolveRelationshipsForView,
 } from "@structsmith/domain";
 import type { Edge, Node } from "@xyflow/react";
+import { handleId } from "./relationshipGeometry";
 
 export const NODE_WIDTH = DEFAULT_NODE_WIDTH;
 export const NODE_HEIGHT = DEFAULT_NODE_HEIGHT;
@@ -148,22 +149,16 @@ export function buildGraph({ view, elements, relationships, records, views }: Bu
     // (several relationships behind one line) is not.
     const unambiguous = edge.relationships.length === 1;
     const placement = unambiguous ? relationshipPlacements.get(first.id) : undefined;
-    const sideHandle = { top: "t", right: "r", bottom: "b", left: "l" };
+    const downward = view.settings.autoLayoutDirection === "TB";
+    const sourceSide = placement?.sourceSide ?? (downward ? "bottom" : "right");
+    const targetSide = placement?.targetSide ?? (downward ? "top" : "left");
     return {
       id: edge.id,
       type: "relationship",
       source: edge.sourceElementId,
       target: edge.targetElementId,
-      sourceHandle: placement?.sourceSide
-        ? sideHandle[placement.sourceSide]
-        : view.settings.autoLayoutDirection === "TB"
-          ? "b"
-          : "r",
-      targetHandle: placement?.targetSide
-        ? sideHandle[placement.targetSide]
-        : view.settings.autoLayoutDirection === "TB"
-          ? "t"
-          : "l",
+      sourceHandle: handleId(sourceSide, placement?.sourceAnchor),
+      targetHandle: handleId(targetSide, placement?.targetAnchor),
       reconnectable: unambiguous && !edge.implied,
       selectable: unambiguous,
       deletable: unambiguous,

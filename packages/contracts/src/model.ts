@@ -262,6 +262,14 @@ export type ControlPoint = z.infer<typeof ControlPointSchema>;
 export const AttachmentSideSchema = z.enum(["top", "right", "bottom", "left"]);
 export type AttachmentSide = z.infer<typeof AttachmentSideSchema>;
 
+/** Discrete points along one side. 0.25, 0.5 and 0.75 are exact binary fractions. */
+export const AttachmentAnchorSchema = z
+  .union([z.literal(0.25), z.literal(0.5), z.literal(0.75)])
+  .describe(
+    "Point along the attachment side, as a fraction of that side's length: 0.25, 0.5 or 0.75.",
+  );
+export type AttachmentAnchor = z.infer<typeof AttachmentAnchorSchema>;
+
 /** Optional fields keep formatVersion 1 documents and old snapshots readable. */
 export const ViewRelationshipPresentationSchema = z.object({
   sourceSide: AttachmentSideSchema.nullable()
@@ -270,6 +278,16 @@ export const ViewRelationshipPresentationSchema = z.object({
   targetSide: AttachmentSideSchema.nullable()
     .optional()
     .describe("Target attachment side; null uses automatic routing."),
+  sourceAnchor: AttachmentAnchorSchema.nullable()
+    .optional()
+    .describe(
+      "Source point along sourceSide: 0.25, 0.5 or 0.75 of that side. Null uses the center.",
+    ),
+  targetAnchor: AttachmentAnchorSchema.nullable()
+    .optional()
+    .describe(
+      "Target point along targetSide: 0.25, 0.5 or 0.75 of that side. Null uses the center.",
+    ),
   labelOffset: ControlPointSchema.nullable()
     .optional()
     .describe(

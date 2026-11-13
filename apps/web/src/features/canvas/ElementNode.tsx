@@ -1,3 +1,4 @@
+import type { AttachmentSide } from "@structsmith/contracts";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import { AlertTriangle, Lock } from "lucide-react";
 import { memo } from "react";
@@ -6,6 +7,33 @@ import { cn } from "@/lib/utils";
 import { iconFor } from "../icons";
 import { DetailViewAction } from "../navigation/DetailNavigation";
 import type { ElementNodeData } from "./graph";
+import { ATTACHMENT_ANCHORS, handleId } from "./relationshipGeometry";
+
+const ATTACHMENT_POINTS: readonly { side: AttachmentSide; position: Position }[] = [
+  { side: "top", position: Position.Top },
+  { side: "right", position: Position.Right },
+  { side: "bottom", position: Position.Bottom },
+  { side: "left", position: Position.Left },
+];
+
+/** Three points on every side, at 25%, 50% and 75% of that side. */
+function AttachmentHandles() {
+  return ATTACHMENT_POINTS.flatMap(({ side, position }) =>
+    ATTACHMENT_ANCHORS.map((anchor) => (
+      <Handle
+        key={handleId(side, anchor)}
+        type="source"
+        position={position}
+        id={handleId(side, anchor)}
+        style={
+          side === "top" || side === "bottom"
+            ? { left: `${anchor * 100}%` }
+            : { top: `${anchor * 100}%` }
+        }
+      />
+    )),
+  );
+}
 
 /** Custom node (spec §33) — icon, name, technology and a small kind/role badge. */
 function ElementNodeComponent({ data, selected }: NodeProps & { data: ElementNodeData }) {
@@ -35,9 +63,7 @@ function ElementNodeComponent({ data, selected }: NodeProps & { data: ElementNod
           element.external ? "bg-ownership-external" : "bg-ownership-internal",
         )}
       />
-      {[Position.Top, Position.Right, Position.Bottom, Position.Left].map((position) => (
-        <Handle key={position} type="source" position={position} id={position[0]} />
-      ))}
+      <AttachmentHandles />
 
       <div className="flex min-w-0 flex-1 flex-col justify-between px-3 py-2.5">
         <div className="flex items-start gap-2">

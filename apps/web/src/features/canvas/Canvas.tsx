@@ -59,7 +59,7 @@ import { type BoundaryDrag, boundaryDragPositions, startBoundaryDrag } from "./m
 import { type ContextMenuItem, NodeContextMenu } from "./NodeContextMenu";
 import { RelationshipEdge } from "./RelationshipEdge";
 import { RelationshipLegend } from "./RelationshipLegend";
-import { sideForHandle } from "./relationshipGeometry";
+import { attachmentFromHandles } from "./relationshipGeometry";
 import { modelDeletionRoots, selectionFromCanvas } from "./selection";
 
 /** An implied edge carries a derived id, so always resolve the real one. */
@@ -585,8 +585,7 @@ export function Canvas({
                     relationships: [
                       {
                         relationshipId: "@relationship",
-                        sourceSide: sideForHandle(connection.sourceHandle),
-                        targetSide: sideForHandle(connection.targetHandle),
+                        ...attachmentFromHandles(connection.sourceHandle, connection.targetHandle),
                       },
                     ],
                   },
@@ -1194,8 +1193,7 @@ export function Canvas({
                 relationships: [
                   {
                     relationshipId: relationshipIdOf(edge),
-                    sourceSide: sideForHandle(connection.sourceHandle),
-                    targetSide: sideForHandle(connection.targetHandle),
+                    ...attachmentFromHandles(connection.sourceHandle, connection.targetHandle),
                   },
                 ],
               },

@@ -1,9 +1,38 @@
 import { expect, test } from "bun:test";
-import { ViewRelationshipPatchSchema, WorkspaceDocumentSchema } from "@structsmith/contracts";
+import {
+  AttachmentAnchorSchema,
+  ViewRelationshipPatchSchema,
+  WorkspaceDocumentSchema,
+} from "@structsmith/contracts";
 import { getBezierPath, getSmoothStepPath, Position } from "@xyflow/react";
 import { createTestContext, createWorkspace } from "../../../../../tests/helpers";
 import { buildGraph } from "./graph";
-import { pathThroughControlPoints, pointOnRelationshipPath } from "./relationshipGeometry";
+import {
+  ATTACHMENT_ANCHORS,
+  attachmentFromHandles,
+  handleId,
+  pathThroughControlPoints,
+  pointOnRelationshipPath,
+  sideForHandle,
+} from "./relationshipGeometry";
+
+test("each side exposes center and quarter attachment points", () => {
+  for (const anchor of ATTACHMENT_ANCHORS) {
+    expect(AttachmentAnchorSchema.safeParse(anchor).success).toBe(true);
+  }
+  expect(handleId("top", null)).toBe("t");
+  expect(handleId("left", 0.5)).toBe("l");
+  expect(handleId("right", 0.25)).toBe("r-25");
+  expect(handleId("bottom", 0.75)).toBe("b-75");
+  expect(sideForHandle("l-25")).toBe("left");
+  expect(sideForHandle("t-10")).toBeNull();
+  expect(attachmentFromHandles("r-75", "t")).toEqual({
+    sourceSide: "right",
+    sourceAnchor: 0.75,
+    targetSide: "top",
+    targetAnchor: null,
+  });
+});
 
 test("normalized label positions follow rendered path length, including orthogonal elbows and curves", () => {
   const path = "M0,0 L100,0 L100,300";
@@ -74,6 +103,8 @@ test("relationship presentation is view-owned, guarded, previewable, portable an
     const presentation = {
       sourceSide: "right" as const,
       targetSide: "left" as const,
+      sourceAnchor: 0.25 as const,
+      targetAnchor: 0.75 as const,
       color: "#22c55e",
       strokeWidth: 3,
       lineStyle: "dashed" as const,
@@ -111,8 +142,8 @@ test("relationship presentation is view-owned, guarded, previewable, portable an
       records: [],
     });
     expect(graph.edges[0]).toMatchObject({
-      sourceHandle: "r",
-      targetHandle: "l",
+      sourceHandle: "r-25",
+      targetHandle: "l-75",
       reconnectable: true,
       data: { placement: presentation },
     });
@@ -203,6 +234,8 @@ test("invalid presentation and cross-workspace references do not write partial c
       { strokeWidth: 0 },
       { strokeWidth: 9 },
       { sourceSide: "center" },
+      { sourceAnchor: 0.2 },
+      { targetAnchor: 1 },
     ]) {
       expect(
         ViewRelationshipPatchSchema.safeParse({ relationshipId: relationship.id, ...patch })
