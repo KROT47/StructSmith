@@ -644,6 +644,7 @@
     "offsetX": "Przesunięcie X",
     "offsetY": "Przesunięcie Y",
     "labelHelp": "Przeciągnij etykietę lub ustaw na niej fokus i użyj strzałek (Shift: 10 jednostek). Automatyczny układ zachowuje pozycję etykiety.",
+    "derivedMarker": "Pochodzi z widoku poniżej. Kliknij dwukrotnie, aby otworzyć ten widok i ustawić fokus na relacji.",
     "moveLabel": "Przesuń etykietę relacji: {{label}}",
     "resetLabel": "Resetuj pozycję etykiety",
     "resetAll": "Resetuj wygląd",

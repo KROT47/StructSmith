@@ -189,18 +189,30 @@ describe("duplicate relationships on a diagram", () => {
     expect(new Set(toBilling?.derivedDescription?.split(";\n"))).toEqual(
       new Set(["Publishes invoice status", "Publishes payment status"]),
     );
+    expect(toBilling.derivedFrom).toEqual({
+      viewId: diagram.containers.id,
+      relationshipId: diagram.publishesInvoices.id,
+    });
     expect(edgeLabel(toBilling)).toBe(`${toBilling.derivedDescription};\nPublishes summaries`);
     expect(edgeLabel(toBilling)).not.toContain("[HTTPS]");
 
     expect(fromBilling).toMatchObject({ implied: false, id: diagram.sendsEvents.id });
     expect(fromBilling.derivedDescription).toBe("Sends invoice changes");
+    expect(fromBilling.derivedFrom).toEqual({
+      viewId: diagram.containers.id,
+      relationshipId: diagram.sendsChanges.id,
+    });
     expect(edgeLabel(fromBilling)).toBe("Sends invoice changes;\nSends account events");
 
     expect(toMail).toMatchObject({ implied: false, id: diagram.notifies.id });
     expect(toMail.derivedDescription).toBe("Sends receipts");
+    expect(toMail.derivedFrom).toEqual({
+      viewId: diagram.containers.id,
+      relationshipId: diagram.sendsReceipts.id,
+    });
     expect(edgeLabel(toMail)).toBe("Sends receipts");
 
-    expect(asks).toMatchObject({ implied: true, derivedDescription: null });
+    expect(asks).toMatchObject({ implied: true, derivedDescription: null, derivedFrom: null });
     expect(edgeLabel(asks)).toBe("Asks for work");
 
     const derivedIds = new Set([
@@ -221,7 +233,10 @@ describe("duplicate relationships on a diagram", () => {
 
     const singleLine = estimateLabelSize("Publishes summaries");
     const wrapped = estimateLabelSize("Publishes invoice status;\nPublishes summaries");
+    const marked = estimateLabelSize("Publishes summaries", { marker: true });
     expect(wrapped && singleLine && wrapped.height > singleLine.height).toBe(true);
+    expect(marked && singleLine && marked.width > singleLine.width).toBe(true);
+    expect(marked && singleLine && marked.height === singleLine.height).toBe(true);
 
     const mermaid = toMermaid(document, { view: context });
     const publishLines = mermaid.split("\n").filter((line) => line.includes("Publishes"));
@@ -308,6 +323,7 @@ describe("duplicate relationships on a diagram", () => {
     const before = edgesOf(withoutContainer, contextView);
     const direct = edgeBetween(before, portal.id, billing.id, publishes.id);
     expect(direct.derivedDescription).toBeNull();
+    expect(direct.derivedFrom).toBeNull();
     expect(edgeLabel(direct)).toBe("Publishes summaries");
     expect(before.some((edge) => edge.relationships.some((item) => item.id === invoices.id))).toBe(
       true,
@@ -347,10 +363,22 @@ describe("duplicate relationships on a diagram", () => {
     ).toBe(false);
     const containerView = withContainer.views.find((view) => view.name === "Containers");
     if (!containerView) throw new Error("Missing container view");
-    const containerEdges = edgesOf(withContainer, containerView);
-    expect(edgeLabel(edgeBetween(containerEdges, api.id, billing.id))).toBe(
-      "Publishes line items;\nPublishes invoice status",
+    expect(absorbed.derivedFrom).toEqual({
+      viewId: containerView.id,
+      relationshipId: invoices.id,
+    });
+    const componentView = withContainer.views.find((view) => view.name === "API components");
+    const lineItems = withContainer.relationships.find(
+      (item) => item.description === "Publishes line items",
     );
+    if (!componentView || !lineItems) throw new Error("Missing component relationship");
+    const containerEdges = edgesOf(withContainer, containerView);
+    const containerArrow = edgeBetween(containerEdges, api.id, billing.id);
+    expect(edgeLabel(containerArrow)).toBe("Publishes line items;\nPublishes invoice status");
+    expect(containerArrow.derivedFrom).toEqual({
+      viewId: componentView.id,
+      relationshipId: lineItems.id,
+    });
 
     close();
   });
@@ -434,6 +462,12 @@ describe("duplicate relationships on a diagram", () => {
     expect(arrow.implied).toBe(false);
     expect(arrow.relationships.map((item) => item.id)).toEqual([direct.id]);
     expect(arrow.derivedDescription).toBe("Передаёт задания ролям");
+    const containerView = document.views.find((view) => view.name === "System Containers");
+    if (!containerView) throw new Error("Missing container view");
+    expect(arrow.derivedFrom).toEqual({
+      viewId: containerView.id,
+      relationshipId: throughWorker.id,
+    });
     expect(edgeLabel(arrow)).toBe("Передаёт задания ролям;\nПередаёт задания для выполнения ролей");
     expect(edgeLabel(arrow)).not.toContain("инструкции роли");
     expect(
@@ -550,9 +584,14 @@ describe("duplicate relationships on a diagram", () => {
     const contextArrow = towardRuntime.find((edge) => !edge.implied);
     if (!contextArrow) throw new Error("Missing context arrow");
     expect(contextArrow.relationships.map((item) => item.id)).toEqual([direct.id]);
+    expect(contextArrow.derivedDescription?.split(";\n")[0]).toBe("Передаёт задания ролям");
     expect(new Set(contextArrow.derivedDescription?.split(";\n"))).toEqual(
       new Set(["Передаёт задания ролям", "Запускает роль"]),
     );
+    expect(contextArrow.derivedFrom).toEqual({
+      viewId: containers.id,
+      relationshipId: throughWorker.id,
+    });
     expect(contextArrow.derivedDescription).not.toContain("инструкции роли");
     expect(
       contextEdges.some((edge) => edge.relationships.some((item) => item.id === launcherRel.id)),
@@ -568,6 +607,10 @@ describe("duplicate relationships on a diagram", () => {
     expect(containerArrow.implied).toBe(false);
     expect(containerArrow.relationships.map((item) => item.id)).toEqual([fromContainers.id]);
     expect(containerArrow.derivedDescription).toBe("Читает технический журнал задачи");
+    expect(containerArrow.derivedFrom).toEqual({
+      viewId: components.id,
+      relationshipId: fromComponents.id,
+    });
     expect(edgeLabel(containerArrow)).toBe("Читает технический журнал задачи");
 
     const componentEdges = edgesOf(document, componentView);
@@ -577,6 +620,7 @@ describe("duplicate relationships on a diagram", () => {
     expect(componentLogs).toHaveLength(1);
     expect(componentLogs[0]?.relationships.map((item) => item.id)).toEqual([fromComponents.id]);
     expect(componentLogs[0]?.derivedDescription).toBeNull();
+    expect(componentLogs[0]?.derivedFrom).toBeNull();
     expect(edgeLabel(componentLogs[0] as ResolvedRelationship)).toBe(
       "Читает технический журнал задачи",
     );

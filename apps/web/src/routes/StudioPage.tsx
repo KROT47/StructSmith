@@ -1,4 +1,9 @@
-import { ancestorViews, detailViewKind, detailViewsFor } from "@structsmith/domain";
+import {
+  ancestorViews,
+  type DerivedRelationshipSource,
+  detailViewKind,
+  detailViewsFor,
+} from "@structsmith/domain";
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
 import {
   type Dispatch,
@@ -180,6 +185,8 @@ function StudioContent({
   const handledReference = useRef<string | null>(null);
   const [detailElementId, setDetailElementId] = useState<string | null>(null);
   const [restoreViewport, setRestoreViewport] = useState(false);
+  const [pendingRelationshipFocus, setPendingRelationshipFocus] =
+    useState<DerivedRelationshipSource | null>(null);
   const connectFrom = useEditorStore((state) => state.connectFrom);
 
   useWorkspaceEvents(workspaceId);
@@ -187,6 +194,12 @@ function StudioContent({
   useEffect(() => {
     if (!viewId && activeViewId) onNavigate(workspaceId, activeViewId);
   }, [viewId, activeViewId, workspaceId, onNavigate]);
+
+  useEffect(() => {
+    setPendingRelationshipFocus((current) =>
+      current && current.viewId !== activeViewId ? null : current,
+    );
+  }, [activeViewId]);
 
   useEffect(() => {
     if (!reference || handledReference.current === reference) return;
@@ -241,6 +254,10 @@ function StudioContent({
   };
   const selectView = (nextViewId: string): void => openView(nextViewId, false);
   const descendTo = (nextViewId: string): void => openView(nextViewId, true);
+  const openDerivedRelationship = (source: DerivedRelationshipSource): void => {
+    setPendingRelationshipFocus(source);
+    descendTo(source.viewId);
+  };
   const deleteActiveView = (): void => {
     if (!activeViewId) return;
     const index = viewList.findIndex((item) => item.id === activeViewId);
@@ -523,6 +540,12 @@ function StudioContent({
                           onOpenDetails={openDetails}
                           canOpenDetails={canOpenDetails}
                           onBack={back}
+                          onOpenDerivedRelationship={openDerivedRelationship}
+                          focusRelationshipId={
+                            pendingRelationshipFocus?.viewId === view.data.id
+                              ? pendingRelationshipFocus.relationshipId
+                              : undefined
+                          }
                         />
                       ) : (
                         <div

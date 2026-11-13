@@ -19,6 +19,18 @@ export interface ResolvedRelationship {
    * not contribute, and neither does a child that no lower view shows.
    */
   derivedDescription: string | null;
+  /**
+   * The lower view and relationship that supplied the first line of
+   * `derivedDescription`. Opening that view focuses this relationship.
+   * Further lines from deeper views stay on the label and do not replace it.
+   */
+  derivedFrom: DerivedRelationshipSource | null;
+}
+
+/** Where the first line of a derived description is drawn. */
+export interface DerivedRelationshipSource {
+  viewId: string;
+  relationshipId: string;
 }
 
 /** The membership a lower view needs in order to count as displaying a relationship. */
@@ -96,15 +108,20 @@ export function resolveRelationshipsForView(
       relationships: [relationship],
       implied: !direct,
       derivedDescription: null,
+      derivedFrom: null,
     });
   }
 
+  const derivedViews = diagram
+    ? derivedViewByRelationship(diagram, elements, relationships, visibleIds)
+    : new Map<string, string>();
   absorbDerivedRelationships(
     merged,
     byId,
     diagram ? relationshipsOnLowerViews(elements, relationships, visibleIds, diagram) : new Set(),
+    derivedViews,
   );
-  absorbRecordedDuplicates(merged, placement.definedHere, placement.definedBelow);
+  absorbRecordedDuplicates(merged, placement.definedHere, placement.definedBelow, derivedViews);
   return [...merged.values()];
 }
 
@@ -161,10 +178,99 @@ function shownRelationshipIds(view: DiagramViewRef): Set<string> {
  * them was drawn on a deeper view. The arrow recorded on this view stays, and
  * the deeper description becomes its derived description.
  */
+/**
+ * Nearest lower view that draws each relationship. An explicit row wins over
+ * mere co-placement, and a nearer view wins over a deeper one.
+ */
+function derivedViewByRelationship(
+  diagram: { viewId: string; views: readonly DiagramViewRef[] },
+  elements: readonly ArchitectureElement[],
+  relationships: readonly ArchitectureRelationship[],
+  visibleIds: ReadonlySet<string>,
+): Map<string, string> {
+  const sources = new Map<string, string>();
+  const current = diagram.views.find((view) => view.id === diagram.viewId);
+  if (!current) return sources;
+
+  const descendants = diagram.views
+    .filter((view) => view.id !== current.id)
+    .flatMap((view) => {
+      const ancestors = ancestorViews(view, diagram.views, elements);
+      return ancestors.some((ancestor) => ancestor.id === current.id)
+        ? [{ view, depth: ancestors.length }]
+        : [];
+    })
+    .sort(
+      (left, right) =>
+        left.depth - right.depth ||
+        left.view.name.localeCompare(right.view.name) ||
+        left.view.id.localeCompare(right.view.id),
+    );
+
+  for (const { view } of descendants) {
+    for (const entry of view.relationships) {
+      if (entry.hidden || sources.has(entry.relationshipId)) continue;
+      sources.set(entry.relationshipId, view.id);
+    }
+  }
+
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  for (const elementId of visibleIds) {
+    const element = byId.get(elementId);
+    if (!element) continue;
+    for (const lower of detailViewsFor(element, diagram.views, diagram.viewId)) {
+      const visible = new Set(
+        lower.elements.filter((entry) => !entry.hidden).map((entry) => entry.elementId),
+      );
+      const hidden = new Set(
+        lower.relationships.filter((entry) => entry.hidden).map((entry) => entry.relationshipId),
+      );
+      for (const relationship of relationships) {
+        if (sources.has(relationship.id) || hidden.has(relationship.id)) continue;
+        if (
+          visible.has(relationship.sourceElementId) &&
+          visible.has(relationship.targetElementId)
+        ) {
+          sources.set(relationship.id, lower.id);
+        }
+      }
+    }
+  }
+  return sources;
+}
+
+/** The relationship whose description is the first line, and the view that draws it. */
+function primaryDerivedSource(
+  relationships: readonly ArchitectureRelationship[],
+  viewByRelationship: ReadonlyMap<string, string>,
+): DerivedRelationshipSource | null {
+  for (const relationship of relationships) {
+    if (!relationship.description?.trim()) continue;
+    const viewId = viewByRelationship.get(relationship.id);
+    if (!viewId) continue;
+    return { viewId, relationshipId: relationship.id };
+  }
+  return null;
+}
+
+function applyDerivedDescription(
+  edge: ResolvedRelationship,
+  relationships: readonly ArchitectureRelationship[],
+  viewByRelationship: ReadonlyMap<string, string>,
+): void {
+  const text = derivedDescriptionFrom(relationships);
+  if (!text) return;
+  if (!edge.derivedDescription) {
+    edge.derivedFrom = primaryDerivedSource(relationships, viewByRelationship);
+  }
+  edge.derivedDescription = mergeDerived(edge.derivedDescription, text);
+}
+
 function absorbRecordedDuplicates(
   merged: Map<string, ResolvedRelationship>,
   definedHere: ReadonlySet<string>,
   definedBelow: ReadonlySet<string>,
+  viewByRelationship: ReadonlyMap<string, string>,
 ): void {
   if (definedBelow.size === 0) return;
 
@@ -185,9 +291,10 @@ function absorbRecordedDuplicates(
     );
     const absorbed = group.filter((edge) => !kept.includes(edge));
     if (kept.length === 0 || absorbed.length === 0) continue;
-    const derived = derivedDescriptionFrom(absorbed.flatMap((edge) => edge.relationships));
-    for (const edge of kept)
-      edge.derivedDescription = mergeDerived(edge.derivedDescription, derived);
+    const absorbedRelationships = absorbed.flatMap((edge) => edge.relationships);
+    for (const edge of kept) {
+      applyDerivedDescription(edge, absorbedRelationships, viewByRelationship);
+    }
     for (const edge of absorbed) merged.delete(edge.id);
   }
 }
@@ -253,6 +360,7 @@ function absorbDerivedRelationships(
   merged: Map<string, ResolvedRelationship>,
   byId: ReadonlyMap<string, ArchitectureElement>,
   shownOnLowerView: ReadonlySet<string>,
+  viewByRelationship: ReadonlyMap<string, string>,
 ): void {
   if (shownOnLowerView.size === 0) return;
 
@@ -274,8 +382,9 @@ function absorbDerivedRelationships(
       shownOnLowerView.has(relationship.id),
     );
     if (fromLowerView.length === 0) continue;
-    const derivedDescription = derivedDescriptionFrom(fromLowerView);
-    for (const shown of direct) shown.derivedDescription = derivedDescription;
+    for (const shown of direct) {
+      applyDerivedDescription(shown, fromLowerView, viewByRelationship);
+    }
     const remaining = edge.relationships.filter(
       (relationship) =>
         !shownOnLowerView.has(relationship.id) && !refinesShown(byId, fromLowerView, relationship),

@@ -1,5 +1,5 @@
 import type { ArchitectureRelationship, ViewRelationship } from "@structsmith/contracts";
-import { labelLineLimit } from "@structsmith/domain";
+import { type DerivedRelationshipSource, labelLineLimit } from "@structsmith/domain";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -9,7 +9,7 @@ import {
   getStraightPath,
   useReactFlow,
 } from "@xyflow/react";
-import { memo, useEffect, useId, useRef, useState } from "react";
+import { createContext, memo, useContext, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useApplyOperations } from "@/hooks/useApi";
@@ -17,6 +17,10 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor";
 import type { RelationshipEdgeData } from "./graph";
 import { pathThroughControlPoints, pointOnRelationshipPath } from "./relationshipGeometry";
+
+export const OpenDerivedRelationshipContext = createContext<
+  ((source: DerivedRelationshipSource) => void) | null
+>(null);
 
 export type RelationshipFocus = "normal" | "connected" | "dimmed";
 
@@ -61,6 +65,7 @@ function RelationshipEdgeComponent({
   data,
 }: EdgeProps & { data?: RelationshipEdgeData }) {
   const { t } = useTranslation();
+  const openDerived = useContext(OpenDerivedRelationshipContext);
   const flow = useReactFlow();
   const applyOperations = useApplyOperations(data?.workspaceId ?? "");
   const select = useEditorStore((state) => state.select);
@@ -70,6 +75,7 @@ function RelationshipEdgeComponent({
   const drag = useRef<{ start: { x: number; y: number }; offset: { x: number; y: number } } | null>(
     null,
   );
+  const labelDragged = useRef(false);
   useEffect(() => setDragOffset(placement?.labelOffset ?? null), [placement?.labelOffset]);
   const activeElementId = useEditorStore((state) =>
     state.selection.type === "element" ? state.selection.id : null,
@@ -136,6 +142,7 @@ function RelationshipEdgeComponent({
 
   const label =
     data?.implied && (data?.count ?? 0) > 1 ? `${data.label} (${data.count})` : (data?.label ?? "");
+  const derived = Boolean(data?.derivedDescription);
 
   return (
     <>
@@ -188,16 +195,34 @@ function RelationshipEdgeComponent({
         <EdgeLabelRenderer>
           <Button
             variant="outline"
-            aria-label={t("relationshipPresentation.moveLabel", { label })}
-            title={t("relationshipPresentation.labelHelp")}
+            data-derived={derived ? "true" : undefined}
+            aria-label={
+              derived
+                ? `${t("relationshipPresentation.moveLabel", { label })}. ${t("relationshipPresentation.derivedMarker")}`
+                : t("relationshipPresentation.moveLabel", { label })
+            }
+            title={
+              derived
+                ? t("relationshipPresentation.derivedMarker")
+                : t("relationshipPresentation.labelHelp")
+            }
             disabled={!data?.editable}
             onClick={(event) => {
               event.stopPropagation();
               if (relationship) select({ type: "relationship", id: relationship.id });
             }}
+            onDoubleClick={(event) => {
+              const source = data?.derivedFrom;
+              if (!source || !openDerived || labelDragged.current) return;
+              if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+              event.preventDefault();
+              event.stopPropagation();
+              openDerived(source);
+            }}
             onPointerDown={(event) => {
               if (event.button !== 0 || !data?.editable) return;
               event.stopPropagation();
+              labelDragged.current = false;
               event.currentTarget.setPointerCapture(event.pointerId);
               drag.current = {
                 start: flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
@@ -208,6 +233,9 @@ function RelationshipEdgeComponent({
             onPointerMove={(event) => {
               if (!drag.current) return;
               const point = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+              if (Math.hypot(point.x - drag.current.start.x, point.y - drag.current.start.y) > 3) {
+                labelDragged.current = true;
+              }
               setDragOffset({
                 x: drag.current.offset.x + point.x - drag.current.start.x,
                 y: drag.current.offset.y + point.y - drag.current.start.y,
@@ -247,7 +275,7 @@ function RelationshipEdgeComponent({
               });
             }}
             className={cn(
-              "nodrag nopan pointer-events-auto absolute h-auto max-w-[170px] cursor-grab touch-none whitespace-pre-line rounded border px-1.5 py-0.5 text-center text-[10px] font-medium leading-[1.3] shadow-sm active:cursor-grabbing",
+              "nodrag nopan pointer-events-auto absolute inline-block h-auto max-w-[170px] cursor-grab touch-none rounded border text-center text-[10px] font-medium leading-[1.3] shadow-sm active:cursor-grabbing",
               focus === "connected"
                 ? "border-primary/70 text-foreground"
                 : "border-border text-foreground",
@@ -256,15 +284,33 @@ function RelationshipEdgeComponent({
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               backgroundColor: relationshipLabelBackground(focus),
               opacity: focus === "dimmed" ? 0.75 : 1,
-              // Keep the clamp aligned with estimateLabelSize in the layout.
-              display: "-webkit-box",
-              WebkitLineClamp: labelLineLimit(label),
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              overflowWrap: "anywhere",
+              // A little extra space on the right for the asterisk. Same vertical
+              // padding as any other label. Inline so the button size variant
+              // cannot reclaim it.
+              padding: derived ? "2px 16px 2px 6px" : "2px 6px",
             }}
           >
-            {label}
+            <span
+              className="block whitespace-pre-line text-center"
+              style={{
+                // Keep the clamp aligned with estimateLabelSize in the layout.
+                display: "-webkit-box",
+                WebkitLineClamp: labelLineLimit(label),
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {label}
+            </span>
+            {derived ? (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute top-1 right-1.5 text-[12px] font-semibold leading-none text-primary"
+              >
+                *
+              </span>
+            ) : null}
           </Button>
         </EdgeLabelRenderer>
       )}

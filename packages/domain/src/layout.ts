@@ -66,6 +66,12 @@ const LABEL_MAX_LINES = 3;
 const MULTILINE_LABEL_MAX_LINES = 6;
 const LABEL_PADDING_X = 12;
 const LABEL_PADDING_Y = 8;
+/**
+ * The derived-description chip uses `2px 16px 2px 6px` instead of `2px 6px`:
+ * 10px of extra padding on the right, so the corner asterisk stays clear of
+ * the text. Height does not change.
+ */
+const DERIVED_MARKER_PADDING_X = 10;
 
 /** Line clamp shared by layout reservation and the edge label chip. */
 export function labelLineLimit(label: string | undefined): number {
@@ -96,6 +102,8 @@ export interface LayoutEdge {
   /** Edge label text. Its box is reserved in the layout so labels do not
    *  end up underneath a node. */
   label?: string;
+  /** The label chip reserves a corner for the derived-description marker. */
+  marker?: boolean;
 }
 
 export interface LayoutPosition {
@@ -111,7 +119,10 @@ export interface LabelBox {
   height: number;
 }
 
-export function estimateLabelSize(label: string | undefined): LabelBox | null {
+export function estimateLabelSize(
+  label: string | undefined,
+  options?: { marker?: boolean },
+): LabelBox | null {
   const text = label?.trim();
   if (!text) return null;
 
@@ -129,8 +140,9 @@ export function estimateLabelSize(label: string | undefined): LabelBox | null {
   );
   const lines = Math.min(labelLineLimit(text), wrapped);
 
+  const markerX = options?.marker ? DERIVED_MARKER_PADDING_X : 0;
   return {
-    width: Math.round(Math.min(widest, LABEL_MAX_WIDTH) + LABEL_PADDING_X),
+    width: Math.round(Math.min(widest, LABEL_MAX_WIDTH) + LABEL_PADDING_X + markerX),
     height: lines * LABEL_LINE_HEIGHT + LABEL_PADDING_Y,
   };
 }
@@ -242,7 +254,7 @@ function computeDagreLayout(
     if (!present.has(edge.source) || !present.has(edge.target) || edge.source === edge.target) {
       continue;
     }
-    const label = estimateLabelSize(edge.label);
+    const label = estimateLabelSize(edge.label, { marker: edge.marker });
     graph.setEdge(
       edge.source,
       edge.target,

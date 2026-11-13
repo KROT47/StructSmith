@@ -730,6 +730,7 @@ export function autoLayoutView(
       source: edge.sourceElementId,
       target: edge.targetElementId,
       label: edgeLabel(edge),
+      marker: edge.derivedDescription != null,
     })),
     direction,
     algorithm,

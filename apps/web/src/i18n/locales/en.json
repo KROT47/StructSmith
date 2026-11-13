@@ -636,6 +636,7 @@
     "offsetX": "Label offset X",
     "offsetY": "Label offset Y",
     "labelHelp": "Drag the label or focus it and use arrow keys (Shift: 10 units). Placement is preserved by automatic layout.",
+    "derivedMarker": "Derived from a lower view. Double-click to open that view and focus the relationship.",
     "moveLabel": "Move relationship label: {{label}}",
     "resetLabel": "Reset label placement",
     "resetAll": "Reset presentation",

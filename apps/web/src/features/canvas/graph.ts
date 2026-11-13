@@ -9,6 +9,7 @@ import type {
 import {
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
+  type DerivedRelationshipSource,
   type DiagramViewRef,
   edgeLabel,
   estimateElementSize,
@@ -48,6 +49,10 @@ export interface RelationshipEdgeData extends Record<string, unknown> {
   /** True when the edge stands in for relationships between hidden descendants. */
   implied: boolean;
   label: string;
+  /** Set when the label includes a description taken from a lower view. */
+  derivedDescription: string | null;
+  /** The view and relationship to open when this label is double-clicked. */
+  derivedFrom: DerivedRelationshipSource | null;
   count: number;
   routing: ViewDetail["settings"]["relationshipRouting"];
   showLabel: boolean;
@@ -167,6 +172,8 @@ export function buildGraph({ view, elements, relationships, records, views }: Bu
         relationship: first,
         implied: edge.implied,
         label,
+        derivedDescription: edge.derivedDescription,
+        derivedFrom: edge.derivedFrom,
         count: edge.relationships.length,
         routing: view.settings.relationshipRouting,
         showLabel: view.settings.showRelationshipLabels,

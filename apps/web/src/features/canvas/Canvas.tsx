@@ -5,6 +5,7 @@ import type {
   ArchitectureRelationship,
   ViewDetail,
 } from "@structsmith/contracts";
+import type { DerivedRelationshipSource } from "@structsmith/domain";
 import {
   applyEdgeChanges,
   applyNodeChanges,
@@ -57,7 +58,7 @@ import {
 } from "./graph";
 import { type BoundaryDrag, boundaryDragPositions, startBoundaryDrag } from "./movement";
 import { type ContextMenuItem, NodeContextMenu } from "./NodeContextMenu";
-import { RelationshipEdge } from "./RelationshipEdge";
+import { OpenDerivedRelationshipContext, RelationshipEdge } from "./RelationshipEdge";
 import { RelationshipLegend } from "./RelationshipLegend";
 import { attachmentFromHandles } from "./relationshipGeometry";
 import { modelDeletionRoots, selectionFromCanvas } from "./selection";
@@ -149,6 +150,10 @@ interface CanvasProps {
   onOpenDetails: (elementId: string) => void;
   canOpenDetails: (elementId: string) => boolean;
   onBack: () => void;
+  /** Double-click on a derived relationship opens this view and focuses the source. */
+  onOpenDerivedRelationship?: (source: DerivedRelationshipSource) => void;
+  /** Relationship to select and frame after this view opens. */
+  focusRelationshipId?: string;
 }
 
 export function Canvas({
@@ -163,6 +168,8 @@ export function Canvas({
   onOpenDetails,
   canOpenDetails,
   onBack,
+  onOpenDerivedRelationship,
+  focusRelationshipId,
 }: CanvasProps) {
   const { t } = useTranslation();
   const flow = useReactFlow();
@@ -216,8 +223,9 @@ export function Canvas({
     graph.edges.map((edge) => ({
       ...edge,
       selected:
-        initialLocation?.selection.type === "relationship" &&
-        initialLocation.selection.id === relationshipIdOf(edge),
+        (initialLocation?.selection.type === "relationship" &&
+          initialLocation.selection.id === relationshipIdOf(edge)) ||
+        focusRelationshipId === relationshipIdOf(edge),
     })),
   );
   // Overlapping paths must not intercept a selected connector's reconnect
@@ -363,6 +371,13 @@ export function Canvas({
     };
   }, [store]);
 
+  const appliedRelationshipFocus = useRef<string | null>(null);
+  const onOpenDerivedRef = useRef(onOpenDerivedRelationship);
+  onOpenDerivedRef.current = onOpenDerivedRelationship;
+  const openDerivedRelationship = useCallback((source: DerivedRelationshipSource) => {
+    onOpenDerivedRef.current?.(source);
+  }, []);
+
   useEffect(() => {
     if (!flow.viewportInitialized || (nodes.length > 0 && !nodesInitialized)) return;
     if (fittedViewId.current === view.id) return;
@@ -371,6 +386,26 @@ export function Canvas({
     else if (nodes.length > 0) void flow.fitView({ duration: 300, padding: 0.2 });
     if (restoredSelection.current) select(restoredSelection.current);
   }, [nodesInitialized, nodes.length, view.id, flow, select]);
+
+  useEffect(() => {
+    if (!focusRelationshipId) return;
+    if (!flow.viewportInitialized || (nodes.length > 0 && !nodesInitialized)) return;
+    const key = `${view.id}:${focusRelationshipId}`;
+    if (appliedRelationshipFocus.current === key) return;
+    const edge = edges.find((item) => relationshipIdOf(item) === focusRelationshipId);
+    if (!edge) return;
+    appliedRelationshipFocus.current = key;
+    select({ type: "relationship", id: focusRelationshipId });
+    setNodes((current) =>
+      current.map((node) => (node.selected ? { ...node, selected: false } : node)),
+    );
+    setEdges((current) =>
+      current.map((item) => {
+        const shouldSelect = relationshipIdOf(item) === focusRelationshipId;
+        return item.selected === shouldSelect ? item : { ...item, selected: shouldSelect };
+      }),
+    );
+  }, [focusRelationshipId, nodesInitialized, nodes.length, view.id, select, edges]);
 
   /**
    * Selecting an element outside the canvas (model tree, command palette) has
@@ -1211,125 +1246,142 @@ export function Canvas({
         event.dataTransfer.dropEffect = "copy";
       }}
     >
-      <ReactFlow
-        nodes={allNodes}
-        edges={layeredEdges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onNodesChange={onNodesChange}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        connectionMode={ConnectionMode.Loose}
-        onReconnectStart={(_event, edge) => {
-          reconnectingEdge.current = edge as FlowEdge;
-        }}
-        onReconnectEnd={() => {
-          reconnectingEdge.current = null;
-        }}
-        isValidConnection={(connection) => {
-          const edge = reconnectingEdge.current;
-          return edge
-            ? connection.source === edge.source && connection.target === edge.target
-            : connection.source !== connection.target;
-        }}
-        onReconnect={(edge, connection) => {
-          if (connection.source !== edge.source || connection.target !== edge.target) return;
-          applyOperations.mutate({
-            label: t("relationshipPresentation.updated"),
-            operations: [
-              {
-                op: "setViewRelationships",
-                viewId: view.id,
-                relationships: [
-                  {
-                    relationshipId: relationshipIdOf(edge),
-                    ...attachmentFromHandles(connection.sourceHandle, connection.targetHandle),
-                  },
-                ],
-              },
-            ],
-          });
-        }}
-        reconnectRadius={14}
-        onSelectionChange={onSelectionChange}
-        onNodeClick={onNodeClick}
-        onNodeDoubleClick={(event, node) => {
-          if (
-            connectFrom ||
-            Date.now() < ignoreDetailsUntil.current ||
-            event.ctrlKey ||
-            event.metaKey ||
-            event.altKey ||
-            event.shiftKey ||
-            (event.target as HTMLElement).closest("button, input, textarea, a, .react-flow__handle")
-          )
-            return;
-          const elementId = node.type === "boundary" ? node.data.elementId : node.id;
-          if (elementId) onOpenDetails(String(elementId));
-        }}
-        zoomOnDoubleClick={false}
-        // Two-finger trackpad and mouse-wheel movement pans on both axes, in
-        // step with the gesture. Pinch, and the primary modifier plus scroll,
-        // still change the scale.
-        zoomOnScroll={false}
-        zoomOnPinch
-        panOnScroll
-        panOnScrollMode={PanOnScrollMode.Free}
-        panOnScrollSpeed={1}
-        onNodeContextMenu={onNodeContextMenu}
-        onEdgeContextMenu={onEdgeContextMenu}
-        onPaneClick={(event) => {
-          setMenu(null);
-          clearSelection();
-          setNodes((current) =>
-            current.map((node) => (node.selected ? { ...node, selected: false } : node)),
-          );
-          setEdges((current) =>
-            current.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)),
-          );
-          if (
-            event.detail === 2 &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey &&
-            !event.shiftKey
-          )
-            onBack();
-        }}
-        onDelete={deleteSelection}
-        selectionMode={SelectionMode.Partial}
-        panOnDrag
-        selectionKeyCode={SELECTION_KEYS}
-        multiSelectionKeyCode={SELECTION_KEYS}
-        // A selected boundary covers a large area. Keep the explicit graph
-        // layering (boundaries < edges < elements) so cards remain clickable.
-        elevateNodesOnSelect={false}
-        snapToGrid={view.settings.snapToGrid}
-        snapGrid={[16, 16]}
-        minZoom={0.15}
-        maxZoom={2.5}
-        defaultViewport={initialViewport.current}
-        fitView={!initialViewport.current}
-        fitViewOptions={{ padding: 0.2 }}
-        proOptions={{ hideAttribution: false }}
-        deleteKeyCode={["Delete", "Backspace"]}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="var(--canvas-dot)" />
-        <Controls showInteractive={false} position="bottom-left" />
-        <MiniMap
-          pannable
-          zoomable
-          position="bottom-right"
-          nodeStrokeWidth={2}
-          style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
-          maskColor="color-mix(in oklch, var(--foreground) 16%, transparent)"
-          maskStrokeColor="var(--foreground)"
-          maskStrokeWidth={1}
-        />
-      </ReactFlow>
+      <OpenDerivedRelationshipContext.Provider value={openDerivedRelationship}>
+        <ReactFlow
+          nodes={allNodes}
+          edges={layeredEdges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          connectionMode={ConnectionMode.Loose}
+          onReconnectStart={(_event, edge) => {
+            reconnectingEdge.current = edge as FlowEdge;
+          }}
+          onReconnectEnd={() => {
+            reconnectingEdge.current = null;
+          }}
+          isValidConnection={(connection) => {
+            const edge = reconnectingEdge.current;
+            return edge
+              ? connection.source === edge.source && connection.target === edge.target
+              : connection.source !== connection.target;
+          }}
+          onReconnect={(edge, connection) => {
+            if (connection.source !== edge.source || connection.target !== edge.target) return;
+            applyOperations.mutate({
+              label: t("relationshipPresentation.updated"),
+              operations: [
+                {
+                  op: "setViewRelationships",
+                  viewId: view.id,
+                  relationships: [
+                    {
+                      relationshipId: relationshipIdOf(edge),
+                      ...attachmentFromHandles(connection.sourceHandle, connection.targetHandle),
+                    },
+                  ],
+                },
+              ],
+            });
+          }}
+          reconnectRadius={14}
+          onSelectionChange={onSelectionChange}
+          onNodeClick={onNodeClick}
+          onNodeDoubleClick={(event, node) => {
+            if (
+              connectFrom ||
+              Date.now() < ignoreDetailsUntil.current ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.altKey ||
+              event.shiftKey ||
+              (event.target as HTMLElement).closest(
+                "button, input, textarea, a, .react-flow__handle",
+              )
+            )
+              return;
+            const elementId = node.type === "boundary" ? node.data.elementId : node.id;
+            if (elementId) onOpenDetails(String(elementId));
+          }}
+          zoomOnDoubleClick={false}
+          // Two-finger trackpad and mouse-wheel movement pans on both axes, in
+          // step with the gesture. Pinch, and the primary modifier plus scroll,
+          // still change the scale.
+          zoomOnScroll={false}
+          zoomOnPinch
+          panOnScroll
+          panOnScrollMode={PanOnScrollMode.Free}
+          panOnScrollSpeed={1}
+          onNodeContextMenu={onNodeContextMenu}
+          onEdgeContextMenu={onEdgeContextMenu}
+          onEdgeDoubleClick={(event, edge) => {
+            const source = (edge.data as RelationshipEdgeData | undefined)?.derivedFrom;
+            if (!source) return;
+            if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+            event.preventDefault();
+            event.stopPropagation();
+            openDerivedRelationship(source);
+          }}
+          onPaneClick={(event) => {
+            setMenu(null);
+            clearSelection();
+            setNodes((current) =>
+              current.map((node) => (node.selected ? { ...node, selected: false } : node)),
+            );
+            setEdges((current) =>
+              current.map((edge) => (edge.selected ? { ...edge, selected: false } : edge)),
+            );
+            if (
+              event.detail === 2 &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.altKey &&
+              !event.shiftKey
+            )
+              onBack();
+          }}
+          onDelete={deleteSelection}
+          selectionMode={SelectionMode.Partial}
+          panOnDrag
+          selectionKeyCode={SELECTION_KEYS}
+          multiSelectionKeyCode={SELECTION_KEYS}
+          // A selected boundary covers a large area. Keep the explicit graph
+          // layering (boundaries < edges < elements) so cards remain clickable.
+          elevateNodesOnSelect={false}
+          snapToGrid={view.settings.snapToGrid}
+          snapGrid={[16, 16]}
+          minZoom={0.15}
+          maxZoom={2.5}
+          defaultViewport={initialViewport.current}
+          fitView={!initialViewport.current}
+          fitViewOptions={{ padding: 0.2 }}
+          proOptions={{ hideAttribution: false }}
+          deleteKeyCode={["Delete", "Backspace"]}
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={18}
+            size={1}
+            color="var(--canvas-dot)"
+          />
+          <Controls showInteractive={false} position="bottom-left" />
+          <MiniMap
+            pannable
+            zoomable
+            position="bottom-right"
+            nodeStrokeWidth={2}
+            style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
+            maskColor="color-mix(in oklch, var(--foreground) 16%, transparent)"
+            maskStrokeColor="var(--foreground)"
+            maskStrokeWidth={1}
+          />
+        </ReactFlow>
+      </OpenDerivedRelationshipContext.Provider>
 
       {selection.type === "elements" && selection.ids.length > 1 && (
         <div className="absolute left-1/2 top-14 flex w-max max-w-[calc(100%_-_1.5rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-md border border-border bg-card/95 p-2 shadow-lg backdrop-blur-sm">
