@@ -70,6 +70,23 @@ const nodeTypes = { element: ElementNode, boundary: BoundaryNode };
 const edgeTypes = { relationship: RelationshipEdge };
 const LAYOUT_DEBOUNCE_MS = 500;
 const SELECTION_KEYS = ["Meta", "Control"];
+/** Kept in step with the minimap frame in `index.css`. Numbers, not "170px": the map divides by them. */
+const MINIMAP_WIDTH = 170;
+const MINIMAP_HEIGHT = 110;
+
+/**
+ * React Flow only learns the pane size from its own ResizeObserver and from
+ * window resize. A side panel changes the canvas through flex-grow, and that
+ * observer does not run, so the minimap keeps the previous viewport rectangle.
+ * Panel resize notifies this event after the new layout is on screen.
+ */
+export const DIAGRAM_RESIZE_EVENT = "structsmith:diagram-resize";
+
+export function notifyDiagramResize(): void {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event(DIAGRAM_RESIZE_EVENT));
+  });
+}
 
 /**
  * Command/Ctrl+A is also the browser's Select All. That highlight sometimes
@@ -309,6 +326,42 @@ export function Canvas({
       window.clearInterval(timer);
     };
   }, [nodesInitialized, nodes.length, store]);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    let frameId = 0;
+    const measure = () => {
+      const pane = frame.querySelector<HTMLElement>(".react-flow__renderer");
+      if (!pane || pane.checkVisibility?.() === false) return;
+      const width = pane.offsetWidth;
+      const height = pane.offsetHeight;
+      if (width === 0 || height === 0) return;
+      const state = store.getState();
+      if (state.width === width && state.height === height) return;
+      store.setState({ width, height });
+    };
+    const schedule = () => {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(measure);
+    };
+    measure();
+    const resizeObserver = new ResizeObserver(schedule);
+    resizeObserver.observe(frame);
+    const panel = frame.closest("[data-panel]");
+    const column = frame.closest(".flex-col");
+    const mutationObserver = new MutationObserver(schedule);
+    if (panel) mutationObserver.observe(panel, { attributes: true, attributeFilter: ["style"] });
+    if (column) mutationObserver.observe(column, { childList: true });
+    // The notifier already waits a frame, so the pane size is current.
+    window.addEventListener(DIAGRAM_RESIZE_EVENT, measure);
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener(DIAGRAM_RESIZE_EVENT, measure);
+    };
+  }, [store]);
 
   useEffect(() => {
     if (!flow.viewportInitialized || (nodes.length > 0 && !nodesInitialized)) return;
@@ -1271,7 +1324,10 @@ export function Canvas({
           zoomable
           position="bottom-right"
           nodeStrokeWidth={2}
-          maskColor="transparent"
+          style={{ width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT }}
+          maskColor="color-mix(in oklch, var(--foreground) 16%, transparent)"
+          maskStrokeColor="var(--foreground)"
+          maskStrokeWidth={1}
         />
       </ReactFlow>
 

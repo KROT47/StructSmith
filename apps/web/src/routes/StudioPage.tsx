@@ -14,7 +14,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { Group, Panel, Separator, usePanelRef } from "react-resizable-panels";
 import { toast } from "sonner";
-import { Canvas } from "@/features/canvas/Canvas";
+import { Canvas, notifyDiagramResize } from "@/features/canvas/Canvas";
 import { useChatStore } from "@/features/chat/store";
 import { CommandPalette } from "@/features/command/CommandPalette";
 import { ElementPalette } from "@/features/command/ElementPalette";
@@ -74,6 +74,9 @@ function useCollapsiblePanel(defaultSize: string) {
       if (asPercentage > 0) expandedSize.current = `${asPercentage}%`;
     }
     setCollapsed((current) => (current === next ? current : next));
+    // The canvas grows and shrinks with these panels. Tell the minimap after
+    // layout, including a drag that does not change the collapsed flag.
+    notifyDiagramResize();
   };
   const applyCollapsed = (next: boolean): void => {
     const panel = panelRef.current;

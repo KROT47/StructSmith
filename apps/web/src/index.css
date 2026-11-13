@@ -170,8 +170,10 @@
   background: var(--accent);
 }
 .react-flow__minimap {
-  width: 170px;
-  height: 110px;
+  /* Content box matches the MiniMap width/height. A border on border-box would
+     shrink the svg and stretch the viewport rectangle. */
+  box-sizing: content-box;
+  overflow: hidden;
   background-color: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
