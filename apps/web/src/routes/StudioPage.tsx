@@ -509,6 +509,7 @@ function StudioContent({
                           key={view.data.id}
                           workspaceId={workspaceId}
                           view={view.data}
+                          views={viewList}
                           elements={elements}
                           boundaries={boundaries}
                           relationships={relationships}
@@ -562,6 +563,7 @@ function StudioContent({
                 boundaries={boundaries}
                 relationships={relationships}
                 records={recordList}
+                views={viewList}
                 view={view.data ?? null}
                 collapsed={inspectorPanel.collapsed}
                 onToggleCollapse={inspectorPanel.toggle}

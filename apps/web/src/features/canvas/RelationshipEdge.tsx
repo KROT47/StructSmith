@@ -1,4 +1,5 @@
 import type { ArchitectureRelationship, ViewRelationship } from "@structsmith/contracts";
+import { labelLineLimit } from "@structsmith/domain";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -246,7 +247,7 @@ function RelationshipEdgeComponent({
               });
             }}
             className={cn(
-              "nodrag nopan pointer-events-auto absolute h-auto max-w-[170px] cursor-grab touch-none whitespace-normal rounded border px-1.5 py-0.5 text-center text-[10px] font-medium leading-[1.3] shadow-sm active:cursor-grabbing",
+              "nodrag nopan pointer-events-auto absolute h-auto max-w-[170px] cursor-grab touch-none whitespace-pre-line rounded border px-1.5 py-0.5 text-center text-[10px] font-medium leading-[1.3] shadow-sm active:cursor-grabbing",
               focus === "connected"
                 ? "border-primary/70 text-foreground"
                 : "border-border text-foreground",
@@ -255,9 +256,9 @@ function RelationshipEdgeComponent({
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               backgroundColor: relationshipLabelBackground(focus),
               opacity: focus === "dimmed" ? 0.75 : 1,
-              // Wrap to at most three lines — the layout reserves exactly this box.
+              // Keep the clamp aligned with estimateLabelSize in the layout.
               display: "-webkit-box",
-              WebkitLineClamp: 3,
+              WebkitLineClamp: labelLineLimit(label),
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
               overflowWrap: "anywhere",

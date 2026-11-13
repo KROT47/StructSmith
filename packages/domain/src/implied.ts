@@ -1,4 +1,9 @@
-import type { ArchitectureElement, ArchitectureRelationship } from "@structsmith/contracts";
+import type {
+  ArchitectureElement,
+  ArchitectureRelationship,
+  ViewKind,
+} from "@structsmith/contracts";
+import { detailViewsFor } from "./detail-views";
 
 export interface ResolvedRelationship {
   /** Stable id: the relationship id for direct edges, a derived key otherwise. */
@@ -8,6 +13,21 @@ export interface ResolvedRelationship {
   relationships: ArchitectureRelationship[];
   /** True when the edge stands in for relationships between hidden descendants. */
   implied: boolean;
+  /**
+   * Descriptions of same-direction relationships drawn on a view one level
+   * below this one. Hidden children that are not on such a view do not contribute.
+   */
+  derivedDescription: string | null;
+}
+
+/** The membership a lower view needs in order to count as displaying a relationship. */
+export interface DiagramViewRef {
+  id: string;
+  name: string;
+  kind: ViewKind;
+  scopeElementId: string | null;
+  elements: readonly { elementId: string; hidden: boolean }[];
+  relationships: readonly { relationshipId: string; hidden: boolean }[];
 }
 
 /**
@@ -15,11 +35,17 @@ export interface ResolvedRelationship {
  * the traffic in and out of that system. Relationships whose endpoints are not
  * on the view are lifted to their nearest visible ancestor and merged — the
  * same rule Structurizr calls "implied relationships".
+ *
+ * A relationship drawn on a view one level below is not drawn again when this
+ * view already has the same direction. Its description is kept on the visible
+ * relationship as `derivedDescription`. Children that are only in the model,
+ * and are not placed on that lower view, stay ordinary implied edges.
  */
 export function resolveRelationshipsForView(
   elements: readonly ArchitectureElement[],
   relationships: readonly ArchitectureRelationship[],
   visibleIds: ReadonlySet<string>,
+  diagram?: { viewId: string; views: readonly DiagramViewRef[] },
 ): ResolvedRelationship[] {
   const byId = new Map(elements.map((element) => [element.id, element]));
 
@@ -56,10 +82,104 @@ export function resolveRelationshipsForView(
       targetElementId: target,
       relationships: [relationship],
       implied: !direct,
+      derivedDescription: null,
     });
   }
 
+  absorbDerivedRelationships(
+    merged,
+    diagram ? relationshipsOnLowerViews(elements, relationships, visibleIds, diagram) : new Set(),
+  );
   return [...merged.values()];
+}
+
+/**
+ * Relationship ids whose two endpoints are both placed, and not hidden, on a
+ * detail view one level below an element visible here. A container inside a
+ * system counts only when the container view actually shows it.
+ */
+function relationshipsOnLowerViews(
+  elements: readonly ArchitectureElement[],
+  relationships: readonly ArchitectureRelationship[],
+  visibleIds: ReadonlySet<string>,
+  diagram: { viewId: string; views: readonly DiagramViewRef[] },
+): Set<string> {
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const shown = new Set<string>();
+  for (const elementId of visibleIds) {
+    const element = byId.get(elementId);
+    if (!element) continue;
+    for (const lower of detailViewsFor(element, diagram.views, diagram.viewId)) {
+      const visible = new Set(
+        lower.elements.filter((entry) => !entry.hidden).map((entry) => entry.elementId),
+      );
+      const hidden = new Set(
+        lower.relationships.filter((entry) => entry.hidden).map((entry) => entry.relationshipId),
+      );
+      for (const relationship of relationships) {
+        if (hidden.has(relationship.id)) continue;
+        if (
+          visible.has(relationship.sourceElementId) &&
+          visible.has(relationship.targetElementId)
+        ) {
+          shown.add(relationship.id);
+        }
+      }
+    }
+  }
+  return shown;
+}
+
+/**
+ * When this view already shows a relationship in a direction, hide the
+ * same-direction relationship that is drawn on the view one level below and
+ * keep its description on the direct edge. Other lifted relationships stay.
+ */
+function absorbDerivedRelationships(
+  merged: Map<string, ResolvedRelationship>,
+  shownOnLowerView: ReadonlySet<string>,
+): void {
+  if (shownOnLowerView.size === 0) return;
+
+  const directByDirection = new Map<string, ResolvedRelationship[]>();
+  for (const edge of merged.values()) {
+    if (edge.implied) continue;
+    const key = `${edge.sourceElementId}->${edge.targetElementId}`;
+    const group = directByDirection.get(key);
+    if (group) group.push(edge);
+    else directByDirection.set(key, [edge]);
+  }
+
+  const absorbed: string[] = [];
+  for (const [id, edge] of merged) {
+    if (!edge.implied) continue;
+    const direct = directByDirection.get(`${edge.sourceElementId}->${edge.targetElementId}`);
+    if (!direct?.length) continue;
+    const fromLowerView = edge.relationships.filter((relationship) =>
+      shownOnLowerView.has(relationship.id),
+    );
+    if (fromLowerView.length === 0) continue;
+    const derivedDescription = derivedDescriptionFrom(fromLowerView);
+    for (const shown of direct) shown.derivedDescription = derivedDescription;
+    const remaining = edge.relationships.filter(
+      (relationship) => !shownOnLowerView.has(relationship.id),
+    );
+    if (remaining.length === 0) absorbed.push(id);
+    else edge.relationships = remaining;
+  }
+  for (const id of absorbed) merged.delete(id);
+}
+
+function derivedDescriptionFrom(relationships: readonly ArchitectureRelationship[]): string | null {
+  const seen = new Set<string>();
+  const descriptions: string[] = [];
+  for (const relationship of relationships) {
+    const description = relationship.description?.trim();
+    if (!description || seen.has(description)) continue;
+    seen.add(description);
+    descriptions.push(description);
+  }
+  return descriptions.length > 0 ? descriptions.join(";\n") : null;
 }
 
 /**
@@ -69,6 +189,11 @@ export function resolveRelationshipsForView(
 export function edgeLabel(edge: ResolvedRelationship): string {
   const [first] = edge.relationships;
   if (!first) return "";
+
+  if (edge.derivedDescription) {
+    const own = first.description?.trim();
+    return own ? `${edge.derivedDescription};\n${own}` : edge.derivedDescription;
+  }
 
   if (edge.implied) {
     const descriptions = [

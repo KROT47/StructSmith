@@ -9,6 +9,7 @@ import type {
 import {
   DEFAULT_NODE_HEIGHT,
   DEFAULT_NODE_WIDTH,
+  type DiagramViewRef,
   edgeLabel,
   estimateElementSize,
   resolveRelationshipsForView,
@@ -63,6 +64,8 @@ interface BuildInput {
   elements: readonly ArchitectureElement[];
   relationships: readonly ArchitectureRelationship[];
   records: readonly ArchitectureRecord[];
+  /** Other views in the workspace. A level-down view can supply derived descriptions. */
+  views?: readonly DiagramViewRef[];
 }
 
 /** Risk indicators stay subtle — the canvas must not turn into a christmas tree. */
@@ -86,7 +89,7 @@ function riskSeverities(records: readonly ArchitectureRecord[]): Map<string, "hi
  * never owns data — it renders what a view declares visible, where the view
  * says it is.
  */
-export function buildGraph({ view, elements, relationships, records }: BuildInput): {
+export function buildGraph({ view, elements, relationships, records, views }: BuildInput): {
   nodes: FlowNode[];
   edges: FlowEdge[];
   hiddenCount: number;
@@ -136,6 +139,7 @@ export function buildGraph({ view, elements, relationships, records }: BuildInpu
     elements,
     relationships.filter((relationship) => !hiddenRelationships.has(relationship.id)),
     visibleIds,
+    views ? { viewId: view.id, views } : undefined,
   ).map((edge) => {
     const first = edge.relationships[0] as ArchitectureRelationship;
     const label = edgeLabel(edge);

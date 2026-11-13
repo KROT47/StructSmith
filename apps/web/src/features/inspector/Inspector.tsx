@@ -12,6 +12,7 @@ import type {
   ViewDetail,
 } from "@structsmith/contracts";
 import { elementKinds, elementRoles, interactionStyles } from "@structsmith/contracts";
+import { resolveRelationshipsForView } from "@structsmith/domain";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -47,6 +48,7 @@ interface InspectorProps {
   boundaries: readonly ArchitectureBoundary[];
   relationships: readonly ArchitectureRelationship[];
   records: readonly ArchitectureRecord[];
+  views: readonly ViewDetail[];
   view: ViewDetail | null;
   collapsed: boolean;
   onToggleCollapse: () => void;
@@ -65,6 +67,7 @@ export function Inspector({
   boundaries,
   relationships,
   records,
+  views,
   view,
   collapsed,
   onToggleCollapse,
@@ -188,6 +191,13 @@ export function Inspector({
               <RelationshipInspector
                 key={relationship.id}
                 relationship={relationship}
+                derivedDescription={derivedDescriptionFor(
+                  view,
+                  views,
+                  elements,
+                  relationships,
+                  relationship.id,
+                )}
                 elements={elements.filter((element) =>
                   view?.elements.some((entry) => entry.elementId === element.id),
                 )}
@@ -768,14 +778,42 @@ function ElementInspector({
 
 /* ------------------------------- relationship ------------------------------- */
 
+function derivedDescriptionFor(
+  view: ViewDetail | null,
+  views: readonly ViewDetail[],
+  elements: readonly ArchitectureElement[],
+  relationships: readonly ArchitectureRelationship[],
+  relationshipId: string,
+): string | null {
+  if (!view) return null;
+  const visibleIds = new Set(
+    view.elements.filter((entry) => !entry.hidden).map((entry) => entry.elementId),
+  );
+  const hiddenRelationships = new Set(
+    view.relationships.filter((entry) => entry.hidden).map((entry) => entry.relationshipId),
+  );
+  const edge = resolveRelationshipsForView(
+    elements,
+    relationships.filter((relationship) => !hiddenRelationships.has(relationship.id)),
+    visibleIds,
+    { viewId: view.id, views },
+  ).find(
+    (candidate) =>
+      !candidate.implied && candidate.relationships.some((item) => item.id === relationshipId),
+  );
+  return edge?.derivedDescription ?? null;
+}
+
 function RelationshipInspector({
   relationship,
+  derivedDescription,
   elements,
   workspaceId,
   viewId,
   onPatch,
 }: {
   relationship: ArchitectureRelationship;
+  derivedDescription: string | null;
   elements: readonly ArchitectureElement[];
   workspaceId: string;
   viewId?: string;
@@ -852,6 +890,18 @@ function RelationshipInspector({
           </Select>
         </Field>
       </div>
+
+      {derivedDescription && (
+        <Field label={t("inspector.derivedDescription")}>
+          <Textarea
+            rows={3}
+            readOnly
+            disabled
+            value={derivedDescription}
+            className="disabled:cursor-not-allowed disabled:opacity-100 disabled:bg-muted/40"
+          />
+        </Field>
+      )}
 
       <Field label={t("common.description")}>
         <Textarea

@@ -193,6 +193,7 @@
     "parent": "Parent",
     "source": "Source",
     "target": "Target",
+    "derivedDescription": "Derived description",
     "interactionStyle": "Interaction style",
     "viewSettings": "View settings",
     "showBoundaries": "Show boundaries",

@@ -715,6 +715,17 @@ export function autoLayoutView(
       allElements,
       repos.relationships.listByWorkspace(workspace.id),
       visible,
+      {
+        viewId,
+        views: repos.views.listByWorkspace(workspace.id).map((item) => ({
+          id: item.id,
+          name: item.name,
+          kind: item.kind,
+          scopeElementId: item.scopeElementId,
+          elements: repos.views.listElements(item.id),
+          relationships: repos.views.listRelationships(item.id),
+        })),
+      },
     ).map((edge) => ({
       source: edge.sourceElementId,
       target: edge.targetElementId,

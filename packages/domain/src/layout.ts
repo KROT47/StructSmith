@@ -62,8 +62,15 @@ const LABEL_MAX_WIDTH = 170;
 const LABEL_CHAR_WIDTH = 5.4;
 const LABEL_LINE_HEIGHT = 13;
 const LABEL_MAX_LINES = 3;
+/** A derived description and the relationship description each need room to wrap. */
+const MULTILINE_LABEL_MAX_LINES = 6;
 const LABEL_PADDING_X = 12;
 const LABEL_PADDING_Y = 8;
+
+/** Line clamp shared by layout reservation and the edge label chip. */
+export function labelLineLimit(label: string | undefined): number {
+  return label?.includes("\n") ? MULTILINE_LABEL_MAX_LINES : LABEL_MAX_LINES;
+}
 
 export interface LayoutNode {
   id: string;
@@ -108,11 +115,22 @@ export function estimateLabelSize(label: string | undefined): LabelBox | null {
   const text = label?.trim();
   if (!text) return null;
 
-  const naturalWidth = text.length * LABEL_CHAR_WIDTH;
-  const lines = Math.min(LABEL_MAX_LINES, Math.max(1, Math.ceil(naturalWidth / LABEL_MAX_WIDTH)));
+  const paragraphs = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (paragraphs.length === 0) return null;
+
+  const widest = Math.max(...paragraphs.map((paragraph) => paragraph.length * LABEL_CHAR_WIDTH));
+  const wrapped = paragraphs.reduce(
+    (sum, paragraph) =>
+      sum + Math.max(1, Math.ceil((paragraph.length * LABEL_CHAR_WIDTH) / LABEL_MAX_WIDTH)),
+    0,
+  );
+  const lines = Math.min(labelLineLimit(text), wrapped);
 
   return {
-    width: Math.round(Math.min(naturalWidth, LABEL_MAX_WIDTH) + LABEL_PADDING_X),
+    width: Math.round(Math.min(widest, LABEL_MAX_WIDTH) + LABEL_PADDING_X),
     height: lines * LABEL_LINE_HEIGHT + LABEL_PADDING_Y,
   };
 }

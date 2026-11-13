@@ -24,6 +24,7 @@ import {
   SelectionMode,
   useNodesInitialized,
   useReactFlow,
+  useStoreApi,
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -122,6 +123,7 @@ export const DRAG_MIME = "application/x-architecture-element";
 interface CanvasProps {
   workspaceId: string;
   view: ViewDetail;
+  views: readonly ViewDetail[];
   elements: readonly ArchitectureElement[];
   boundaries: readonly ArchitectureBoundary[];
   relationships: readonly ArchitectureRelationship[];
@@ -135,6 +137,7 @@ interface CanvasProps {
 export function Canvas({
   workspaceId,
   view,
+  views,
   elements,
   boundaries,
   relationships,
@@ -163,10 +166,17 @@ export function Canvas({
   const clipboard = useEditorStore((state) => state.clipboard);
   const setClipboard = useEditorStore((state) => state.setClipboard);
 
-  const graph = useMemo(
+  // Node geometry does not depend on other views. Rebuilding nodes when the
+  // view list arrives replaces React Flow internals and leaves edges unmeasured.
+  const structure = useMemo(
     () => buildGraph({ view, elements, relationships, records }),
     [view, elements, relationships, records],
   );
+  const edgesForViews = useMemo(
+    () => buildGraph({ view, views, elements, relationships, records }).edges,
+    [view, views, elements, relationships, records],
+  );
+  const graph = useMemo(() => ({ ...structure, edges: edgesForViews }), [structure, edgesForViews]);
   const elementsById = useMemo(
     () => new Map(elements.map((element) => [element.id, element])),
     [elements],
@@ -211,17 +221,41 @@ export function Canvas({
 
   // A rebuild happens after every mutation; carry the current selection over so
   // the highlight does not blink off while the inspector still shows the item.
+  // Replacing node objects when nothing semantic changed drops React Flow's
+  // handle bounds, and the arrows disappear until the next resize.
   useEffect(() => {
     setNodes((current) => {
       const selected = new Set(current.filter((node) => node.selected).map((node) => node.id));
       const previous = new Map(current.map((node) => [node.id, node]));
-      // Keep measurements during presentation saves. Dropping them briefly
-      // removes edges and their focused label buttons while cards are measured.
-      return graph.nodes.map((node) => ({
-        ...node,
-        measured: previous.get(node.id)?.measured,
-        selected: selected.has(node.id),
-      }));
+      let unchanged = current.length === graph.nodes.length;
+      const next = graph.nodes.map((node, index) => {
+        const prev = previous.get(node.id);
+        const isSelected = selected.has(node.id);
+        if (
+          prev &&
+          current[index]?.id === node.id &&
+          prev.position === node.position &&
+          prev.data === node.data &&
+          prev.draggable === node.draggable &&
+          prev.width === node.width &&
+          prev.height === node.height &&
+          prev.style === node.style &&
+          prev.zIndex === node.zIndex &&
+          prev.type === node.type &&
+          Boolean(prev.selected) === isSelected
+        ) {
+          return prev;
+        }
+        unchanged = false;
+        // Keep measurements during presentation saves. Dropping them briefly
+        // removes edges and their focused label buttons while cards are measured.
+        return {
+          ...node,
+          measured: prev?.measured,
+          selected: isSelected,
+        };
+      });
+      return unchanged ? current : next;
     });
   }, [graph.nodes]);
 
@@ -241,8 +275,40 @@ export function Canvas({
    * has settled and before the model query resolves.
    */
   const nodesInitialized = useNodesInitialized();
+  const store = useStoreApi();
+  const frameRef = useRef<HTMLDivElement>(null);
   const fittedViewId = useRef<string | null>(null);
   const initialViewport = useRef(initialLocation?.viewport);
+
+  // The first measure can run before the cards have a size. Handle bounds stay
+  // empty, and connectors are not drawn. Measure again once each card has a box.
+  useEffect(() => {
+    if (nodesInitialized || nodes.length === 0) return;
+    const root = frameRef.current;
+    if (!root) return;
+    let attempts = 0;
+    const refresh = () => {
+      const updates = new Map<string, { id: string; nodeElement: HTMLDivElement; force: true }>();
+      for (const element of root.querySelectorAll<HTMLDivElement>(".react-flow__node")) {
+        const id = element.getAttribute("data-id");
+        if (!id || element.offsetWidth === 0 || element.offsetHeight === 0) continue;
+        updates.set(id, { id, nodeElement: element, force: true });
+      }
+      if (updates.size > 0) store.getState().updateNodeInternals(updates);
+    };
+    refresh();
+    const observer = new ResizeObserver(() => refresh());
+    observer.observe(root);
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      refresh();
+      if (attempts >= 10) window.clearInterval(timer);
+    }, 100);
+    return () => {
+      observer.disconnect();
+      window.clearInterval(timer);
+    };
+  }, [nodesInitialized, nodes.length, store]);
 
   useEffect(() => {
     if (!flow.viewportInitialized || (nodes.length > 0 && !nodesInitialized)) return;
@@ -1084,6 +1150,7 @@ export function Canvas({
 
   return (
     <div
+      ref={frameRef}
       data-diagram-canvas
       className="relative h-full w-full"
       onDrop={onDrop}

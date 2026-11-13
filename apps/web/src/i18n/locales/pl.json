@@ -201,6 +201,7 @@
     "parent": "Rodzic",
     "source": "Źródło",
     "target": "Cel",
+    "derivedDescription": "Opis pochodny",
     "interactionStyle": "Styl interakcji",
     "viewSettings": "Ustawienia widoku",
     "showBoundaries": "Pokaż granice",
