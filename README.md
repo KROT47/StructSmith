@@ -462,13 +462,17 @@ Errors always use the same envelope:
 ### Automatic exports
 
 In a workspace, open **Settings** beside **Add** and choose **Automatic export**.
-It is **Disabled** by default. Enabling a format immediately exports every view;
-disabling it cancels pending exports. Later changes to a view or its model,
-including MCP edits, trigger an export after five seconds without further changes.
-JSON exports (`<view>.json`) contain the complete workspace document;
-Mermaid exports (`<view>.mmd`) contain one view. Files are written to
-`data/auto-exports/<workspace>/`, or beside a custom `DATABASE_PATH`.
-Stable suffixes keep colliding or long workspace and view names separate.
+It is **Disabled** by default. Saving an enabled format immediately exports the
+workspace; disabling it cancels pending exports. Later changes to any view or its
+model, including MCP edits, restart one shared workspace timer and trigger an
+export after five seconds without further changes.
+JSON writes one complete workspace document to
+`data/auto-exports/<workspace_snake_case>.json`, including workspaces with no views.
+Mermaid writes one Markdown file to `data/auto-exports/<workspace_snake_case>.md`,
+with a heading and fenced `mermaid` block for each view. A workspace with no views
+still exports a Markdown workspace heading.
+With a custom `DATABASE_PATH`, `auto-exports/` lives beside the database.
+Stable suffixes keep colliding or long workspace names separate.
 
 ### Chat with local agents
 
