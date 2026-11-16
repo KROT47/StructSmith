@@ -8,8 +8,12 @@ import {
 } from "@structsmith/domain";
 import {
   emptyNavigation,
+  hasPreviousView,
+  leaveForView,
   rememberDescent,
   rememberLocation,
+  rememberVisit,
+  returnToPreviousView,
   type ViewLocation,
 } from "../apps/web/src/features/navigation/history";
 import { createTestContext } from "./helpers";
@@ -209,5 +213,78 @@ test("moving up follows the view tree and keeps the camera that was left behind"
   state = rememberDescent(state, containers.id, components.id);
   expect(state.saved[containers.id]).toEqual(left);
   expect(state.enteredFrom[components.id]).toBe(containers.id);
+  expect(state.history).toEqual([]);
   expect(rememberDescent(state, components.id, components.id)).toBe(state);
+});
+
+test("back returns through visits while up only moves to the parent", () => {
+  const location = (viewId: string, x: number): ViewLocation => ({
+    viewId,
+    viewport: { x, y: 0, zoom: 1 },
+    selection: { type: "none" },
+  });
+  const available = new Set(["context", "containers", "notes"]);
+  const empty = emptyNavigation();
+
+  expect(hasPreviousView(empty, "context", available)).toBe(false);
+  expect(returnToPreviousView(empty, "context", null, available)).toEqual({
+    state: empty,
+    viewId: null,
+  });
+  expect(leaveForView(empty, null, null, "containers", false)).toBe(empty);
+  expect(leaveForView(empty, "context", null, "context", true)).toBe(empty);
+
+  let state = leaveForView(empty, "context", location("context", 10), "containers", true);
+  state = leaveForView(state, "containers", location("containers", 20), "notes", false);
+  expect(state.history).toEqual(["context", "containers"]);
+  expect(state.enteredFrom.containers).toBe("context");
+  expect(state.enteredFrom.notes).toBeUndefined();
+  expect(state.saved.context?.viewport.x).toBe(10);
+  expect(hasPreviousView(state, "notes", available)).toBe(true);
+  expect(leaveForView(state, "notes", location("notes", 1), "notes", true)).toBe(state);
+  expect(rememberVisit(state, "containers")).toBe(state);
+
+  const backToContainers = returnToPreviousView(state, "notes", location("notes", 30), available);
+  expect(backToContainers.viewId).toBe("containers");
+  expect(backToContainers.state.history).toEqual(["context"]);
+  expect(backToContainers.state.saved.notes?.viewport.x).toBe(30);
+  expect(backToContainers.state.history).not.toContain("notes");
+
+  const upToContext = leaveForView(
+    backToContainers.state,
+    "containers",
+    location("containers", 21),
+    "context",
+    false,
+  );
+  expect(upToContext.history).toEqual(["context", "containers"]);
+  expect(upToContext.enteredFrom).toEqual(backToContainers.state.enteredFrom);
+
+  const backAgain = returnToPreviousView(upToContext, "context", null, available);
+  expect(backAgain.viewId).toBe("containers");
+  expect(backAgain.state.history).toEqual(["context"]);
+  expect(backAgain.state.saved.containers?.viewport.x).toBe(21);
+
+  const skipped = returnToPreviousView(
+    { ...backAgain.state, history: ["context", "deleted", "also-deleted"] },
+    "containers",
+    null,
+    available,
+  );
+  expect(skipped.viewId).toBe("context");
+  expect(skipped.state.history).toEqual([]);
+
+  const currentOnly = returnToPreviousView(
+    { ...empty, history: ["containers"] },
+    "containers",
+    null,
+    available,
+  );
+  expect(currentOnly.viewId).toBeNull();
+  expect(currentOnly.state.history).toEqual([]);
+  expect(hasPreviousView(currentOnly.state, "containers", available)).toBe(false);
+
+  const withoutCamera = leaveForView(empty, "context", null, "notes", false);
+  expect(withoutCamera.history).toEqual(["context"]);
+  expect(withoutCamera.saved).toEqual({});
 });

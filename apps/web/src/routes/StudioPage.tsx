@@ -26,12 +26,17 @@ import { ElementPalette } from "@/features/command/ElementPalette";
 import { KeyboardShortcutsDialog } from "@/features/command/KeyboardShortcutsDialog";
 import { Explorer } from "@/features/explorer/Explorer";
 import { Inspector } from "@/features/inspector/Inspector";
+import {
+  createDiagramDeleteGuard,
+  shouldGoBackOnDeleteKey,
+} from "@/features/navigation/backShortcut";
 import { DetailNavigationContext } from "@/features/navigation/DetailNavigation";
 import { DetailViewDialog } from "@/features/navigation/DetailViewDialog";
 import {
   emptyNavigation,
-  rememberDescent,
-  rememberLocation,
+  hasPreviousView,
+  leaveForView,
+  returnToPreviousView,
   type ViewNavigation,
 } from "@/features/navigation/history";
 import { ViewNavigationBar } from "@/features/navigation/ViewNavigationBar";
@@ -154,6 +159,9 @@ function StudioContent({
 }) {
   const { t } = useTranslation();
   const flowRef = useRef<FlowApi | null>(null);
+  // The Delete/Backspace press that steps back is still down when the previous
+  // view restores its selection. Hold diagram deletion until that key is released.
+  const diagramDeleteGuard = useRef(createDiagramDeleteGuard());
 
   const settings = useSettings();
   const workspaces = useWorkspaces();
@@ -229,6 +237,8 @@ function StudioContent({
     () => (activeView ? ancestorViews(activeView, viewList, elements, navigation.enteredFrom) : []),
     [activeView, viewList, elements, navigation.enteredFrom],
   );
+  const availableViewIds = useMemo(() => new Set(viewList.map((view) => view.id)), [viewList]);
+  const canGoBack = hasPreviousView(navigation, activeViewId, availableViewIds);
 
   const currentLocation = () => {
     const viewport = flowRef.current?.getViewport();
@@ -243,10 +253,7 @@ function StudioContent({
   const openView = (nextViewId: string, descend: boolean): void => {
     if (nextViewId === activeViewId) return;
     const current = currentLocation();
-    setNavigation((state) => {
-      const saved = current ? rememberLocation(state, current) : state;
-      return descend && activeViewId ? rememberDescent(saved, activeViewId, nextViewId) : saved;
-    });
+    setNavigation((state) => leaveForView(state, activeViewId, current, nextViewId, descend));
     setRestoreViewport(false);
     clearSelection();
     setDetailElementId(null);
@@ -281,15 +288,25 @@ function StudioContent({
   const goUp = (targetId: string): void => {
     if (!ancestors.some((view) => view.id === targetId)) return;
     const current = currentLocation();
-    if (current) setNavigation((state) => rememberLocation(state, current));
+    setNavigation((state) => leaveForView(state, activeViewId, current, targetId, false));
     setRestoreViewport(Boolean(navigation.saved[targetId]));
     clearSelection();
     setDetailElementId(null);
     onNavigate(workspaceId, targetId);
   };
-  const back = (): void => {
+  const up = (): void => {
     const parent = ancestors.at(-1);
     if (parent) goUp(parent.id);
+  };
+  const back = (): void => {
+    const current = currentLocation();
+    const returned = returnToPreviousView(navigation, activeViewId, current, availableViewIds);
+    if (returned.state !== navigation) setNavigation(returned.state);
+    if (!returned.viewId) return;
+    setRestoreViewport(Boolean(returned.state.saved[returned.viewId]));
+    clearSelection();
+    setDetailElementId(null);
+    onNavigate(workspaceId, returned.viewId);
   };
   const openDetails = (elementId: string): void => {
     if (connectFrom) return;
@@ -399,6 +416,20 @@ function StudioContent({
         setShortcutsOpen(true);
         return;
       }
+      // Backspace/Delete remove the diagram selection. With nothing selected
+      // for deletion, the same keys step back through view history.
+      if (
+        !typing &&
+        !target?.closest("[role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox']")
+      ) {
+        const flow = flowRef.current;
+        if (shouldGoBackOnDeleteKey(event, flow?.getNodes() ?? [], flow?.getEdges() ?? [])) {
+          event.preventDefault();
+          diagramDeleteGuard.current.hold();
+          back();
+          return;
+        }
+      }
       if (typing) return;
       if (primary && matchesLayoutKey(event, "z")) {
         event.preventDefault();
@@ -435,8 +466,21 @@ function StudioContent({
       }
     };
 
+    const releaseDiagramDelete = (event: KeyboardEvent): void => {
+      diagramDeleteGuard.current.release(event.key);
+    };
+    const releaseDiagramDeleteOnBlur = (): void => {
+      diagramDeleteGuard.current.release();
+    };
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", releaseDiagramDelete);
+    window.addEventListener("blur", releaseDiagramDeleteOnBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", releaseDiagramDelete);
+      window.removeEventListener("blur", releaseDiagramDeleteOnBlur);
+    };
   });
 
   if (!workspace.data || !model.data) {
@@ -510,6 +554,8 @@ function StudioContent({
                   current={activeView}
                   elements={elements}
                   ancestors={ancestors}
+                  canGoBack={canGoBack}
+                  onBack={back}
                   onUp={goUp}
                   onEditView={() => {
                     flowRef.current?.setNodes((nodes) =>
@@ -539,7 +585,8 @@ function StudioContent({
                           }
                           onOpenDetails={openDetails}
                           canOpenDetails={canOpenDetails}
-                          onBack={back}
+                          onUp={up}
+                          allowDelete={() => diagramDeleteGuard.current.allow()}
                           onOpenDerivedRelationship={openDerivedRelationship}
                           focusRelationshipId={
                             pendingRelationshipFocus?.viewId === view.data.id

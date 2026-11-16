@@ -149,7 +149,12 @@ interface CanvasProps {
   initialLocation?: ViewLocation;
   onOpenDetails: (elementId: string) => void;
   canOpenDetails: (elementId: string) => boolean;
-  onBack: () => void;
+  onUp: () => void;
+  /**
+   * When false, Backspace/Delete must not remove the current selection.
+   * Used while that key is still held after it navigated back.
+   */
+  allowDelete?: () => boolean;
   /** Double-click on a derived relationship opens this view and focuses the source. */
   onOpenDerivedRelationship?: (source: DerivedRelationshipSource) => void;
   /** Relationship to select and frame after this view opens. */
@@ -167,7 +172,8 @@ export function Canvas({
   initialLocation,
   onOpenDetails,
   canOpenDetails,
-  onBack,
+  onUp,
+  allowDelete,
   onOpenDerivedRelationship,
   focusRelationshipId,
 }: CanvasProps) {
@@ -294,8 +300,8 @@ export function Canvas({
   }, [graph.edges]);
 
   /**
-   * Frame a newly opened view once React Flow has measured its nodes. Going
-   * back passes the viewport saved on the way forward, and that camera is
+   * Frame a newly opened view once React Flow has measured its nodes. Returning
+   * to a view passes the viewport saved on the way out, and that camera is
    * restored instead. The `fitView` prop alone runs before the panel layout
    * has settled and before the model query resolves.
    */
@@ -1343,8 +1349,9 @@ export function Canvas({
               !event.altKey &&
               !event.shiftKey
             )
-              onBack();
+              onUp();
           }}
+          onBeforeDelete={() => Promise.resolve(allowDelete?.() ?? true)}
           onDelete={deleteSelection}
           selectionMode={SelectionMode.Partial}
           panOnDrag

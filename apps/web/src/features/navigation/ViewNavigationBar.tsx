@@ -1,5 +1,5 @@
 import type { ArchitectureElement, ArchitectureView } from "@structsmith/contracts";
-import { ArrowLeft, ChevronRight, Settings2 } from "lucide-react";
+import { ArrowLeft, ArrowUp, ChevronRight, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 
@@ -7,12 +7,16 @@ export function ViewNavigationBar({
   current,
   elements,
   ancestors,
+  canGoBack,
+  onBack,
   onUp,
   onEditView,
 }: {
   current: ArchitectureView | null;
   elements: readonly ArchitectureElement[];
   ancestors: readonly ArchitectureView[];
+  canGoBack: boolean;
+  onBack: () => void;
   onUp: (viewId: string) => void;
   onEditView: () => void;
 }) {
@@ -32,14 +36,18 @@ export function ViewNavigationBar({
       aria-label={t("navigation.title")}
       className="flex min-h-10 shrink-0 items-center gap-2 border-b border-border bg-card px-2"
     >
+      <Button size="sm" variant="ghost" disabled={!canGoBack} onClick={onBack}>
+        <ArrowLeft className="h-3.5 w-3.5" />
+        {t("navigation.back")}
+      </Button>
       <Button
         size="sm"
         variant="ghost"
         disabled={!parent}
         onClick={() => parent && onUp(parent.id)}
       >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        {t("navigation.back")}
+        <ArrowUp className="h-3.5 w-3.5" />
+        {t("navigation.up")}
       </Button>
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto text-xs">
         {ancestors.map((view) => (

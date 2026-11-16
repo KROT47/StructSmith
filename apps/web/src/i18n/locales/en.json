@@ -2,6 +2,8 @@
   "navigation": {
     "title": "Diagram navigation",
     "back": "Back",
+    "up": "Up",
+    "backWhenIdle": "Back when nothing is selected",
     "openDetails": "Open details",
     "openHint_one": "Open detail view (double-click the object)",
     "openHint_other": "Choose from {{count}} detail views (double-click the object)",

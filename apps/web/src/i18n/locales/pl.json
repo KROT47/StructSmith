@@ -2,6 +2,8 @@
   "navigation": {
     "title": "Nawigacja po diagramach",
     "back": "Wstecz",
+    "up": "W górę",
+    "backWhenIdle": "Wstecz, gdy nic nie jest zaznaczone",
     "openDetails": "Otwórz szczegóły",
     "openHint_one": "Otwórz widok szczegółowy (kliknij obiekt dwukrotnie)",
     "openHint_few": "Wybierz spośród {{count}} widoków szczegółowych (kliknij obiekt dwukrotnie)",
