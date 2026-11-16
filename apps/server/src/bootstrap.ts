@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import {
   createDatabase,
   type DatabaseHandle,
@@ -5,6 +6,7 @@ import {
   runMigrations,
 } from "@structsmith/database";
 import { createServices, InMemoryEventBus, type Services } from "@structsmith/domain";
+import { AutoExportScheduler } from "./auto-export";
 import type { AppConfig } from "./config";
 import { seedExampleWorkspace } from "./seed";
 
@@ -27,6 +29,15 @@ export function createAppContext(config: AppConfig): AppContext {
   const bus = new InMemoryEventBus();
   const store = new DrizzleStore(database.db);
   const services = createServices(store, bus);
+  const autoExports = new AutoExportScheduler(
+    services,
+    join(dirname(config.databasePath), "auto-exports"),
+  );
+  const closeDatabase = database.close;
+  database.close = () => {
+    autoExports.close();
+    closeDatabase();
+  };
 
   if (config.seedExample) {
     try {

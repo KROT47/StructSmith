@@ -5,6 +5,7 @@ import type {
   Workspace,
   WorkspaceDocument,
 } from "@structsmith/contracts";
+import { WorkspaceSettingsSchema } from "@structsmith/contracts";
 import {
   captureDocument,
   type MutationOptions,
@@ -32,6 +33,7 @@ export class WorkspaceService {
       name: input.name,
       description: input.description ?? null,
       mode: input.mode ?? "relaxed",
+      settings: WorkspaceSettingsSchema.parse(input.settings ?? {}),
       revision: 1,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -67,11 +69,21 @@ export class WorkspaceService {
         description:
           input.description !== undefined ? (input.description ?? null) : workspace.description,
         mode: input.mode ?? workspace.mode,
+        settings: { ...workspace.settings, ...input.settings },
         updatedAt: nowIso(),
       };
       repos.workspaces.update(next);
       return { result: next, message: `Updated workspace settings`, kind: "workspace" };
     });
+
+    if (input.settings !== undefined) {
+      this.ctx.bus.emit({
+        type: "workspace.settings.changed",
+        workspaceId,
+        revision: mutation.revision,
+        source: options.source ?? "ui",
+      });
+    }
 
     // A workspace embeds its own revision, so return the committed row rather
     // than the pre-bump value produced inside the mutation callback.

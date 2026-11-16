@@ -14,6 +14,7 @@ export const workspaces = sqliteTable("workspaces", {
   name: text("name").notNull(),
   description: text("description"),
   mode: text("mode").notNull().default("relaxed"),
+  settingsJson: text("settings_json").notNull().default("{}"),
   revision: integer("revision").notNull().default(1),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),

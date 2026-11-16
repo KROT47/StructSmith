@@ -150,9 +150,10 @@ test("relationship presentation is view-owned, guarded, previewable, portable an
 
     const document = WorkspaceDocumentSchema.parse(services.model.getDocument(workspace.id));
     const imported = services.imports.importDocument(document);
-    expect(services.views.listDetailed(imported.id)[0]?.relationships[0]).toMatchObject(
-      presentation,
-    );
+    const importedView = services.views
+      .listDetailed(imported.id)
+      .find((candidate) => candidate.key === view.key);
+    expect(importedView?.relationships[0]).toMatchObject(presentation);
     services.views.autoLayout(workspace.id, view.id, "TB");
     expect(services.views.get(view.id).relationships[0]).toMatchObject(presentation);
     if (!applied.snapshotId) throw new Error("Missing snapshot");

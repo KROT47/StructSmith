@@ -27,11 +27,20 @@ const optionalText = z.string().max(20_000).nullable().optional();
 /* Workspace                                                           */
 /* ------------------------------------------------------------------ */
 
+export const AutomaticExportSchema = z.enum(["disabled", "json", "mermaid"]);
+export type AutomaticExport = z.infer<typeof AutomaticExportSchema>;
+
+export const WorkspaceSettingsSchema = z.object({
+  automaticExport: AutomaticExportSchema.default("disabled"),
+});
+export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
+
 export const WorkspaceSchema = z.object({
   id: IdSchema,
   name,
   description: z.string().nullable(),
   mode: WorkspaceModeSchema,
+  settings: WorkspaceSettingsSchema.default({ automaticExport: "disabled" }),
   revision: z.number().int().nonnegative(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -43,6 +52,7 @@ export const CreateWorkspaceSchema = z.object({
   name,
   description: optionalText,
   mode: WorkspaceModeSchema.default("relaxed"),
+  settings: WorkspaceSettingsSchema.optional(),
 });
 export type CreateWorkspaceInput = z.input<typeof CreateWorkspaceSchema>;
 
@@ -50,6 +60,8 @@ export const UpdateWorkspaceSchema = z.object({
   name: name.optional(),
   description: optionalText,
   mode: WorkspaceModeSchema.optional(),
+  // Patches must not apply the default to an omitted setting.
+  settings: z.object({ automaticExport: AutomaticExportSchema.optional() }).optional(),
 });
 export type UpdateWorkspaceInput = z.infer<typeof UpdateWorkspaceSchema>;
 

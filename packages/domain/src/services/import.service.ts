@@ -26,6 +26,7 @@ export class ImportService {
           name: options.name ?? document.workspace.name,
           description: document.workspace.description,
           mode: document.workspace.mode,
+          settings: document.workspace.settings,
           revision: existing.revision + 1,
           updatedAt: timestamp,
         };
@@ -54,6 +55,7 @@ export class ImportService {
         name: options.name ?? document.workspace.name,
         description: document.workspace.description,
         mode: document.workspace.mode,
+        settings: document.workspace.settings,
         revision: 1,
         createdAt: timestamp,
         updatedAt: timestamp,

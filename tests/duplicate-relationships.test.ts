@@ -189,9 +189,13 @@ describe("duplicate relationships on a diagram", () => {
     expect(new Set(toBilling?.derivedDescription?.split(";\n"))).toEqual(
       new Set(["Publishes invoice status", "Publishes payment status"]),
     );
+    const firstContributor = [diagram.publishesInvoices, diagram.publishesPayments].find(
+      (relationship) => relationship.description === toBilling.derivedDescription?.split(";\n")[0],
+    );
+    if (!firstContributor) throw new Error("Missing contributor for first derived description");
     expect(toBilling.derivedFrom).toEqual({
       viewId: diagram.containers.id,
-      relationshipId: diagram.publishesInvoices.id,
+      relationshipId: firstContributor.id,
     });
     expect(edgeLabel(toBilling)).toBe(`${toBilling.derivedDescription};\nPublishes summaries`);
     expect(edgeLabel(toBilling)).not.toContain("[HTTPS]");

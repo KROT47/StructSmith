@@ -13,9 +13,11 @@ import {
   Plus,
   Redo2,
   Search,
+  Settings,
   Sun,
   Undo2,
 } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,7 @@ import { type Theme, useTheme } from "@/lib/theme";
 import { useEditorStore } from "@/store/editor";
 import { useCopyAgentReference } from "../reference/useCopyAgentReference";
 import { ExportMenu } from "./ExportMenu";
+import { WorkspaceSettingsDialog } from "./WorkspaceSettingsDialog";
 
 interface TopBarProps {
   productName: string;
@@ -68,6 +71,7 @@ export function TopBar(props: TopBarProps) {
   const setChatOpen = useChatStore((state) => state.setOpen);
   const openElementPalette = useEditorStore((state) => state.openElementPalette);
   const openNewView = useEditorStore((state) => state.openNewView);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
   const primary = primaryModifierLabel();
@@ -160,6 +164,18 @@ export function TopBar(props: TopBarProps) {
       </DropdownMenu>
 
       <Separator orientation="vertical" className="mx-1 h-4" />
+
+      <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+        <Settings className="h-3.5 w-3.5" />
+        {t("topbar.settings")}
+      </Button>
+      {settingsOpen && (
+        <WorkspaceSettingsDialog
+          key={props.workspace.id}
+          workspace={props.workspace}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
 
       <Button variant="secondary" size="sm" onClick={() => openElementPalette()}>
         <Plus className="h-3.5 w-3.5" />

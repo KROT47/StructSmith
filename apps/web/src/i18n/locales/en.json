@@ -132,6 +132,7 @@
     "activeTheme": "Active theme: {{theme}}"
   },
   "topbar": {
+    "settings": "Settings",
     "workspace": "Workspace",
     "view": "View",
     "add": "Add",
@@ -146,6 +147,14 @@
     "search": "Search",
     "newView": "New view",
     "backHome": "All workspaces"
+  },
+  "workspaceSettings": {
+    "title": "Workspace settings",
+    "automaticExport": "Automatic export",
+    "automaticExportHint": "Export all views when settings are saved. Updated views export after 5 seconds without changes.",
+    "disabled": "Disabled",
+    "json": "Semantic model (JSON)",
+    "mermaid": "Mermaid diagram"
   },
   "layoutAlgorithms": {
     "dagre": "Hierarchical (default)",

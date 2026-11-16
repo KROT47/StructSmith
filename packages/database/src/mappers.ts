@@ -22,7 +22,10 @@ import type {
   Workspace,
   WorkspaceMode,
 } from "@structsmith/contracts";
-import { ViewRelationshipPresentationSchema } from "@structsmith/contracts";
+import {
+  ViewRelationshipPresentationSchema,
+  WorkspaceSettingsSchema,
+} from "@structsmith/contracts";
 import type {
   activity,
   boundaries,
@@ -54,6 +57,7 @@ export function toWorkspace(row: Row<typeof workspaces>): Workspace {
     name: row.name,
     description: row.description,
     mode: row.mode as WorkspaceMode,
+    settings: WorkspaceSettingsSchema.parse(parseJson(row.settingsJson, {})),
     revision: row.revision,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -66,6 +70,7 @@ export function fromWorkspace(workspace: Workspace): Row<typeof workspaces> {
     name: workspace.name,
     description: workspace.description,
     mode: workspace.mode,
+    settingsJson: JSON.stringify(workspace.settings),
     revision: workspace.revision,
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt,

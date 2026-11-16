@@ -450,6 +450,7 @@ Errors always use the same envelope:
 - Presales records linked to elements, with a subtle risk indicator on the canvas
 - Deterministic validator with error / warning / info levels
 - Export: semantic JSON, Mermaid, PNG, SVG. Import: native JSON and Mermaid flowcharts
+- Workspace settings with optional automatic semantic JSON or Mermaid exports
 - Snapshots with restore; undo/redo (`⌘Z` / `⌘⇧Z`) rides on them
 - Command palette (`⌘K`), `F` to fit the view, `Delete`, `Escape`
 - Light / dark / system themes, English and Polish UI
@@ -457,6 +458,17 @@ Errors always use the same envelope:
   general discussions, contextual node/relationship actions, scoped architecture edits,
   model and Codex thinking settings, streamed replies with collapsible reasoning,
   and topic renaming, archiving, restoration and drag-and-drop ordering
+
+### Automatic exports
+
+In a workspace, open **Settings** beside **Add** and choose **Automatic export**.
+It is **Disabled** by default. Enabling a format immediately exports every view;
+disabling it cancels pending exports. Later changes to a view or its model,
+including MCP edits, trigger an export after five seconds without further changes.
+JSON exports (`<view>.json`) contain the complete workspace document;
+Mermaid exports (`<view>.mmd`) contain one view. Files are written to
+`data/auto-exports/<workspace>/`, or beside a custom `DATABASE_PATH`.
+Stable suffixes keep colliding or long workspace and view names separate.
 
 ### Chat with local agents
 

@@ -411,7 +411,15 @@ export function Canvas({
         return item.selected === shouldSelect ? item : { ...item, selected: shouldSelect };
       }),
     );
-  }, [focusRelationshipId, nodesInitialized, nodes.length, view.id, select, edges]);
+  }, [
+    focusRelationshipId,
+    nodesInitialized,
+    nodes.length,
+    view.id,
+    select,
+    edges,
+    flow.viewportInitialized,
+  ]);
 
   /**
    * Selecting an element outside the canvas (model tree, command palette) has

@@ -117,6 +117,12 @@ export interface Store extends Repositories {
 
 export type DomainEvent =
   | {
+      type: "workspace.settings.changed";
+      workspaceId: string;
+      revision: number;
+      source: ChangeSource;
+    }
+  | {
       type: "workspace.changed";
       workspaceId: string;
       revision: number;
