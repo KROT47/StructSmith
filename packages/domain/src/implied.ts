@@ -2,6 +2,7 @@ import type {
   ArchitectureElement,
   ArchitectureRelationship,
   ViewKind,
+  ViewSettings,
 } from "@structsmith/contracts";
 import { ancestorViews, detailViewsFor } from "./detail-views";
 
@@ -46,6 +47,17 @@ export interface DiagramViewRef {
   scopeElementId: string | null;
   elements: readonly { elementId: string; hidden: boolean }[];
   relationships: readonly { relationshipId: string; hidden: boolean }[];
+}
+
+/**
+ * Component views hide lifted relationships unless the view sets this explicitly.
+ * Every other view shows them unless it opts out.
+ */
+export function hidesLiftedRelationships(view: {
+  kind: ViewKind;
+  settings: Pick<ViewSettings, "hideLiftedRelationships">;
+}): boolean {
+  return view.settings.hideLiftedRelationships ?? view.kind === "component";
 }
 
 /**

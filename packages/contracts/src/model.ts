@@ -223,6 +223,12 @@ export const ViewSettingsSchema = z.object({
     .boolean()
     .describe("Show element descriptions inside cards and reserve layout space for them.")
     .default(false),
+  hideLiftedRelationships: z
+    .boolean()
+    .describe(
+      "Hide relationships lifted from elements that are not on this view onto their nearest visible ancestor. When omitted, component views hide them and every other view shows them.",
+    )
+    .optional(),
 });
 export type ViewSettings = z.infer<typeof ViewSettingsSchema>;
 
@@ -238,6 +244,7 @@ const ViewSettingsPatchSchema = z.object({
   showRelationshipLabels: ViewSettingsSchema.shape.showRelationshipLabels.unwrap().optional(),
   showFullTitles: ViewSettingsSchema.shape.showFullTitles.unwrap().optional(),
   showDescriptions: ViewSettingsSchema.shape.showDescriptions.unwrap().optional(),
+  hideLiftedRelationships: ViewSettingsSchema.shape.hideLiftedRelationships,
 });
 
 export const ViewElementSchema = z.object({

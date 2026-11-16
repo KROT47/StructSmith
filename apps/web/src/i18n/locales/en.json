@@ -209,6 +209,7 @@
     "routingCurved": "Curved",
     "routingStraight": "Straight",
     "showRelationshipLabels": "Show relationship labels",
+    "hideLiftedRelationships": "Hide lifted relationships",
     "addTag": "Add tag…",
     "propertyKey": "Key",
     "propertyValue": "Value",

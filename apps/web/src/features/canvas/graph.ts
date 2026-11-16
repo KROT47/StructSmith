@@ -13,6 +13,7 @@ import {
   type DiagramViewRef,
   edgeLabel,
   estimateElementSize,
+  hidesLiftedRelationships,
   resolveRelationshipsForView,
 } from "@structsmith/domain";
 import type { Edge, Node } from "@xyflow/react";
@@ -146,44 +147,46 @@ export function buildGraph({ view, elements, relationships, records, views }: Bu
     relationships.filter((relationship) => !hiddenRelationships.has(relationship.id)),
     visibleIds,
     views ? { viewId: view.id, views } : undefined,
-  ).map((edge) => {
-    const first = edge.relationships[0] as ArchitectureRelationship;
-    const label = edgeLabel(edge);
-    // An implied edge that stands for exactly one relationship is still
-    // unambiguous, so it stays selectable and editable; only a merged edge
-    // (several relationships behind one line) is not.
-    const unambiguous = edge.relationships.length === 1;
-    const placement = unambiguous ? relationshipPlacements.get(first.id) : undefined;
-    const downward = view.settings.autoLayoutDirection === "TB";
-    const sourceSide = placement?.sourceSide ?? (downward ? "bottom" : "right");
-    const targetSide = placement?.targetSide ?? (downward ? "top" : "left");
-    return {
-      id: edge.id,
-      type: "relationship",
-      source: edge.sourceElementId,
-      target: edge.targetElementId,
-      sourceHandle: handleId(sourceSide, placement?.sourceAnchor),
-      targetHandle: handleId(targetSide, placement?.targetAnchor),
-      reconnectable: unambiguous && !edge.implied,
-      selectable: unambiguous,
-      deletable: unambiguous,
-      zIndex: 10,
-      data: {
-        relationship: first,
-        implied: edge.implied,
-        label,
-        derivedDescription: edge.derivedDescription,
-        derivedFrom: edge.derivedFrom,
-        count: edge.relationships.length,
-        routing: view.settings.relationshipRouting,
-        showLabel: view.settings.showRelationshipLabels,
-        placement,
-        workspaceId: view.workspaceId,
-        viewId: view.id,
-        editable: unambiguous,
-      },
-    };
-  });
+  )
+    .filter((edge) => !(hidesLiftedRelationships(view) && edge.implied))
+    .map((edge) => {
+      const first = edge.relationships[0] as ArchitectureRelationship;
+      const label = edgeLabel(edge);
+      // An implied edge that stands for exactly one relationship is still
+      // unambiguous, so it stays selectable and editable; only a merged edge
+      // (several relationships behind one line) is not.
+      const unambiguous = edge.relationships.length === 1;
+      const placement = unambiguous ? relationshipPlacements.get(first.id) : undefined;
+      const downward = view.settings.autoLayoutDirection === "TB";
+      const sourceSide = placement?.sourceSide ?? (downward ? "bottom" : "right");
+      const targetSide = placement?.targetSide ?? (downward ? "top" : "left");
+      return {
+        id: edge.id,
+        type: "relationship",
+        source: edge.sourceElementId,
+        target: edge.targetElementId,
+        sourceHandle: handleId(sourceSide, placement?.sourceAnchor),
+        targetHandle: handleId(targetSide, placement?.targetAnchor),
+        reconnectable: unambiguous && !edge.implied,
+        selectable: unambiguous,
+        deletable: unambiguous,
+        zIndex: 10,
+        data: {
+          relationship: first,
+          implied: edge.implied,
+          label,
+          derivedDescription: edge.derivedDescription,
+          derivedFrom: edge.derivedFrom,
+          count: edge.relationships.length,
+          routing: view.settings.relationshipRouting,
+          showLabel: view.settings.showRelationshipLabels,
+          placement,
+          workspaceId: view.workspaceId,
+          viewId: view.id,
+          editable: unambiguous,
+        },
+      };
+    });
 
   return { nodes, edges, hiddenCount: placements.length - visible.length };
 }

@@ -9,6 +9,7 @@ import { ERROR_CODES } from "@structsmith/contracts";
 import { captureDocument, requireWorkspace, type ServiceContext } from "../context";
 import { DomainError } from "../errors";
 import { createId, nowIso } from "../ids";
+import { hidesLiftedRelationships } from "../implied";
 import type { Repositories, StoredSnapshot } from "../ports";
 
 /** Parents must be inserted before their children (foreign keys). */
@@ -103,7 +104,13 @@ export function restoreDocument(repos: Repositories, document: WorkspaceDocument
   for (const element of inParentOrder(document.elements)) repos.elements.insert(element);
   for (const view of document.views) {
     const { boundaries: _boundaries, elements, relationships, ...rest } = view;
-    repos.views.insert(rest);
+    repos.views.insert({
+      ...rest,
+      settings: {
+        ...rest.settings,
+        hideLiftedRelationships: hidesLiftedRelationships(rest),
+      },
+    });
   }
   const fallbackViewId = document.views[0]?.id;
   const nestedBoundaries = document.views.flatMap((view) =>

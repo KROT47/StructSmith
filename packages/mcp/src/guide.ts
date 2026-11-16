@@ -115,6 +115,8 @@ export function modelingGuide() {
           "Select the deployment, security, compliance, ownership or custom layer rendered on the view.",
         relationshipRouting: "Draw connectors as orthogonal, curved or straight paths.",
         showRelationshipLabels: "Show or hide relationship labels on this view.",
+        hideLiftedRelationships:
+          "Hide relationships lifted from elements that are not on this view onto their nearest visible ancestor. When omitted, component views hide them and every other view shows them.",
         snapToGrid: "Snap manual element movement to the canvas grid.",
       },
       layouts: {

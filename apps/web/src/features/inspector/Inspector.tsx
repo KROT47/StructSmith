@@ -12,7 +12,7 @@ import type {
   ViewDetail,
 } from "@structsmith/contracts";
 import { elementKinds, elementRoles, interactionStyles } from "@structsmith/contracts";
-import { resolveRelationshipsForView } from "@structsmith/domain";
+import { hidesLiftedRelationships, resolveRelationshipsForView } from "@structsmith/domain";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -1067,6 +1067,25 @@ function ViewInspector({
           />
         </div>
 
+        <div className="flex items-center justify-between">
+          <span className="text-[12.5px]">{t("inspector.showRelationshipLabels")}</span>
+          <Switch
+            checked={view.settings.showRelationshipLabels}
+            onCheckedChange={(checked) => onPatch({ showRelationshipLabels: checked })}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <label htmlFor="view-hide-lifted" className="cursor-pointer text-[12.5px]">
+            {t("inspector.hideLiftedRelationships")}
+          </label>
+          <Switch
+            id="view-hide-lifted"
+            checked={hidesLiftedRelationships(view)}
+            onCheckedChange={(checked) => onPatch({ hideLiftedRelationships: checked })}
+          />
+        </div>
+
         <Field label={t("inspector.layoutDirection")}>
           <Select
             value={view.settings.autoLayoutDirection}
@@ -1145,14 +1164,6 @@ function ViewInspector({
             </SelectContent>
           </Select>
         </Field>
-
-        <div className="flex items-center justify-between">
-          <span className="text-[12.5px]">{t("inspector.showRelationshipLabels")}</span>
-          <Switch
-            checked={view.settings.showRelationshipLabels}
-            onCheckedChange={(checked) => onPatch({ showRelationshipLabels: checked })}
-          />
-        </div>
       </div>
     </div>
   );

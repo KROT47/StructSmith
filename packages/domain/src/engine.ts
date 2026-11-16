@@ -31,6 +31,7 @@ import {
   type DiagramViewRef,
   edgeLabel,
   emptyRelationshipsFedBy,
+  hidesLiftedRelationships,
   resolveRelationshipsForView,
 } from "./implied";
 import { computeLayout, estimateElementSize } from "./layout";
@@ -51,6 +52,7 @@ export const defaultViewSettings: ViewSettings = {
   showRelationshipLabels: true,
   showFullTitles: false,
   showDescriptions: false,
+  hideLiftedRelationships: false,
 };
 
 const GRID_COLUMNS = 4;
@@ -521,7 +523,14 @@ export function createView(
     description: input.description ?? null,
     kind: input.kind,
     scopeElementId: input.scopeElementId ?? null,
-    settings: { ...defaultViewSettings, ...(input.settings ?? {}) },
+    settings: {
+      ...defaultViewSettings,
+      ...(input.settings ?? {}),
+      // An omitted flag follows the view kind. false from the defaults above
+      // is not an explicit choice.
+      hideLiftedRelationships:
+        input.settings?.hideLiftedRelationships ?? input.kind === "component",
+    },
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -754,12 +763,14 @@ export function autoLayoutView(
           relationships: repos.views.listRelationships(item.id),
         })),
       },
-    ).map((edge) => ({
-      source: edge.sourceElementId,
-      target: edge.targetElementId,
-      label: edgeLabel(edge),
-      marker: edge.derivedDescription != null,
-    })),
+    )
+      .filter((edge) => !(hidesLiftedRelationships(view) && edge.implied))
+      .map((edge) => ({
+        source: edge.sourceElementId,
+        target: edge.targetElementId,
+        label: edgeLabel(edge),
+        marker: edge.derivedDescription != null,
+      })),
     direction,
     algorithm,
     rootElementId,

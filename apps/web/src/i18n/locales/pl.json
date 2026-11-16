@@ -217,6 +217,7 @@
     "routingCurved": "Krzywy",
     "routingStraight": "Prosty",
     "showRelationshipLabels": "Pokaż etykiety relacji",
+    "hideLiftedRelationships": "Ukryj podniesione relacje",
     "addTag": "Dodaj tag…",
     "propertyKey": "Klucz",
     "propertyValue": "Wartość",

@@ -5,7 +5,11 @@ import type {
   ViewDetail,
   WorkspaceDocument,
 } from "@structsmith/contracts";
-import { edgeLabel as resolvedEdgeLabel, resolveRelationshipsForView } from "./implied";
+import {
+  hidesLiftedRelationships,
+  edgeLabel as resolvedEdgeLabel,
+  resolveRelationshipsForView,
+} from "./implied";
 
 const escapeLabel = (value: string): string => value.replace(/"/g, "'").replace(/\n/g, " ");
 
@@ -56,26 +60,28 @@ export function toMermaid(
       relationships.filter((relationship) => !hiddenRelationships.has(relationship.id)),
       visible,
       { viewId: view.id, views: document.views },
-    ).map((edge) => {
-      const first = edge.relationships[0] as ArchitectureRelationship;
-      const description = edge.derivedDescription
-        ? resolvedEdgeLabel(edge)
-        : edge.implied
-          ? [...new Set(edge.relationships.map((item) => item.description).filter(Boolean))].join(
-              ", ",
-            )
-          : first.description;
-      return {
-        ...first,
-        id: edge.id,
-        sourceElementId: edge.sourceElementId,
-        targetElementId: edge.targetElementId,
-        // A derived description replaces the arrow text, including technology,
-        // so the export matches the label drawn on the diagram.
-        description,
-        technology: edge.derivedDescription ? null : first.technology,
-      };
-    });
+    )
+      .filter((edge) => !(hidesLiftedRelationships(view) && edge.implied))
+      .map((edge) => {
+        const first = edge.relationships[0] as ArchitectureRelationship;
+        const description = edge.derivedDescription
+          ? resolvedEdgeLabel(edge)
+          : edge.implied
+            ? [...new Set(edge.relationships.map((item) => item.description).filter(Boolean))].join(
+                ", ",
+              )
+            : first.description;
+        return {
+          ...first,
+          id: edge.id,
+          sourceElementId: edge.sourceElementId,
+          targetElementId: edge.targetElementId,
+          // A derived description replaces the arrow text, including technology,
+          // so the export matches the label drawn on the diagram.
+          description,
+          technology: edge.derivedDescription ? null : first.technology,
+        };
+      });
     elements = elements.filter((element) => visible.has(element.id));
   }
 

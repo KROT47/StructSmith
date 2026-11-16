@@ -192,7 +192,18 @@ const defaultSettings: ViewSettings = {
   showRelationshipLabels: true,
   showFullTitles: false,
   showDescriptions: false,
+  hideLiftedRelationships: false,
 };
+
+function viewSettings(kind: string, settingsJson: string): ViewSettings {
+  const stored = parseJson<Partial<ViewSettings>>(settingsJson, {});
+  return {
+    ...defaultSettings,
+    ...stored,
+    // A stored document that predates the flag uses the view-kind default.
+    hideLiftedRelationships: stored.hideLiftedRelationships ?? kind === "component",
+  };
+}
 
 export function toView(row: Row<typeof views>): ArchitectureView {
   return {
@@ -203,7 +214,7 @@ export function toView(row: Row<typeof views>): ArchitectureView {
     description: row.description,
     kind: row.kind as ViewKind,
     scopeElementId: row.scopeElementId,
-    settings: { ...defaultSettings, ...parseJson<Partial<ViewSettings>>(row.settingsJson, {}) },
+    settings: viewSettings(row.kind, row.settingsJson),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

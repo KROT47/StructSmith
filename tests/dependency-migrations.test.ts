@@ -60,6 +60,7 @@ describe("Zod view settings", () => {
         showRelationshipLabels: false,
         showFullTitles: true,
         showDescriptions: true,
+        hideLiftedRelationships: false,
       });
     } finally {
       close();

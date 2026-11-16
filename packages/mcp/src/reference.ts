@@ -1,5 +1,9 @@
 import type { ReferenceTargetKind } from "@structsmith/contracts";
-import { resolveRelationshipsForView, type Services } from "@structsmith/domain";
+import {
+  hidesLiftedRelationships,
+  resolveRelationshipsForView,
+  type Services,
+} from "@structsmith/domain";
 
 export function resolveReference(
   services: Services,
@@ -97,7 +101,9 @@ export function resolveReference(
             [target],
             visibleIds,
           )[0];
-          if (!representation) return [];
+          if (!representation || (representation.implied && hidesLiftedRelationships(view))) {
+            return [];
+          }
           return [
             {
               id: view.id,
