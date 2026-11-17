@@ -477,10 +477,10 @@ renaming or deleting a workspace removes its previous files. The default directo
 history stay ignored. With Docker, bind-mount `WORKSPACE_FILES_DIR` into a host
 repository if you want to commit it from the host (the default is inside `/data`).
 
-Changes, including MCP edits, save after five seconds without further changes.
+Changes, including MCP edits, save after three seconds without further changes.
 Files are published by atomic replacement so Git reads complete documents. Pending
 changes are flushed on clean shutdown; an abrupt termination can lose changes
-inside that five-second window. After `git pull` or changing branches, restart
+inside that three-second window. After `git pull` or changing branches, restart
 StructSmith to rebuild the model from the selected JSON. The running instance does
 not watch for external changes; avoid editing the same files from Git and the app
 at the same time.

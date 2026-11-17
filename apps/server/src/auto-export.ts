@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { AUTO_EXPORT_DELAY_MS } from "@structsmith/contracts";
 import { type DomainEvent, type Services, toMermaid } from "@structsmith/domain";
 import { readWorkspaceFiles, writeWorkspaceFile } from "./workspace-files";
 
@@ -73,7 +74,7 @@ export class AutoExportScheduler {
     const timer = setTimeout(() => {
       this.pending.delete(workspaceId);
       this.tryExport(workspaceId);
-    }, 5000);
+    }, AUTO_EXPORT_DELAY_MS);
     timer.unref();
     this.pending.set(workspaceId, timer);
   }
@@ -83,7 +84,7 @@ export class AutoExportScheduler {
       this.export(workspaceId);
     } catch (error) {
       console.error(
-        `[workspace-files] Could not save workspace "${workspaceId}" in "${this.directory}"; retrying in 5 seconds:`,
+        `[workspace-files] Could not save workspace "${workspaceId}" in "${this.directory}"; retrying in ${AUTO_EXPORT_DELAY_MS / 1000} seconds:`,
         error,
       );
       this.schedule(workspaceId);

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, jest, test } from "bun:test";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WorkspaceDocumentSchema } from "@structsmith/contracts";
+import { AUTO_EXPORT_DELAY_MS, WorkspaceDocumentSchema } from "@structsmith/contracts";
 import { createTestContext } from "../../../tests/helpers";
 import { AutoExportScheduler } from "./auto-export";
 
@@ -38,7 +38,7 @@ function setup(name = "Example Workspace") {
 test("JSON is mandatory even with Mermaid disabled and no views", () => {
   const { services, workspace, output, read } = setup();
   services.elements.create(workspace.id, { name: "API", kind: "softwareSystem" });
-  jest.advanceTimersByTime(4999);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS - 1);
   expect(existsSync(output)).toBe(false);
   jest.advanceTimersByTime(1);
   expect(read()).toEqual(services.model.getDocument(workspace.id));
@@ -56,19 +56,19 @@ test("JSON debounces model, record, metadata and layout changes together", () =>
     kind: "custom",
     elementIds: [element.id],
   }).result;
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   const initial = readFileSync(exportedFile(output), "utf8");
   services.views.saveLayout(workspace.id, view.id, [{ elementId: element.id, x: 42, y: 25 }]);
-  jest.advanceTimersByTime(4999);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS - 1);
   services.records.create(workspace.id, { kind: "decision", title: "Use SQLite" });
-  jest.advanceTimersByTime(4999);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS - 1);
   expect(readFileSync(exportedFile(output), "utf8")).toBe(initial);
   jest.advanceTimersByTime(1);
   expect(read().views[0]?.elements[0]).toMatchObject({ x: 42, y: 25 });
   expect(read().records[0]?.title).toBe("Use SQLite");
   services.views.delete(workspace.id, view.id);
   services.workspaces.update(workspace.id, { description: "Updated" });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(read().views).toEqual([]);
   expect(read().workspace.description).toBe("Updated");
 });
@@ -100,7 +100,7 @@ test("disabling Mermaid removes Markdown but continues saving JSON", () => {
   services.workspaces.update(workspace.id, { settings: { automaticExport: "disabled" } });
   expect(readdirSync(output).some((file) => file.endsWith(".md"))).toBe(false);
   services.elements.create(workspace.id, { name: "Still persisted", kind: "person" });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(read().elements[0]?.name).toBe("Still persisted");
 });
 
@@ -108,12 +108,12 @@ test("renaming and deleting workspaces removes old files so they cannot return o
   const { services, workspace, output } = setup();
   services.workspaces.update(workspace.id, { settings: { automaticExport: "mermaid" } });
   services.workspaces.update(workspace.id, { name: "Renamed" });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(readdirSync(output)).toHaveLength(2);
   expect(readdirSync(output).sort()).toEqual(["renamed.json", "renamed.md"]);
   services.elements.create(workspace.id, { name: "Pending", kind: "person" });
   services.workspaces.delete(workspace.id);
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(readdirSync(output)).toEqual([]);
 });
 
@@ -121,7 +121,7 @@ test("long Unicode names have bounded filenames without an ID suffix", () => {
   const { services, workspace, output } = setup("Shared Workspace");
   const second = services.workspaces.create({ name: "Other Workspace" });
   const long = services.workspaces.create({ name: "ﬃ".repeat(100) });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   const files = readdirSync(output);
   expect(files).toHaveLength(3);
   expect(files.every((file) => Buffer.byteLength(file) <= 205 && file.endsWith(".json"))).toBe(
@@ -158,7 +158,7 @@ test("Mermaid preserves view membership, direction and renamed headings", () => 
   expect(readFileSync(file, "utf8")).not.toContain("Outside View");
   expect(readFileSync(file, "utf8").match(/^```mermaid$/gm)).toHaveLength(2);
   services.views.update(workspace.id, first.id, { name: "Renamed" });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(readFileSync(file, "utf8")).toContain("## Renamed\n");
   expect(readFileSync(file, "utf8")).not.toContain("## First\n");
 });
@@ -172,7 +172,7 @@ test("MCP batches and imports always produce JSON", () => {
   );
   const document = services.model.getDocument(workspace.id);
   services.imports.importDocument(document, { name: "Imported Workspace" });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(read().elements[0]?.name).toBe("Via MCP");
   expect(readdirSync(output).some((file) => file === "imported_workspace.json")).toBe(true);
 });
@@ -182,7 +182,7 @@ test("close flushes the latest pending JSON before the database closes", () => {
   services.elements.create(workspace.id, { name: "Last second", kind: "person" });
   scheduler.close();
   expect(read().elements[0]?.name).toBe("Last second");
-  expect(() => jest.advanceTimersByTime(5000)).not.toThrow();
+  expect(() => jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS)).not.toThrow();
 });
 
 test("filesystem errors are logged and retried without losing pending JSON", () => {
@@ -191,10 +191,13 @@ test("filesystem errors are logged and retried without losing pending JSON", () 
   const warning = jest.spyOn(console, "error").mockImplementation(() => {});
   try {
     services.elements.create(workspace.id, { name: "Pending", kind: "person" });
-    expect(() => jest.advanceTimersByTime(5000)).not.toThrow();
-    expect(warning).toHaveBeenCalled();
+    expect(() => jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS)).not.toThrow();
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining(`retrying in ${AUTO_EXPORT_DELAY_MS / 1000} seconds:`),
+      expect.any(Error),
+    );
     rmSync(output);
-    jest.advanceTimersByTime(5000);
+    jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
     expect(read().elements[0]?.name).toBe("Pending");
   } finally {
     warning.mockRestore();
@@ -204,10 +207,10 @@ test("filesystem errors are logged and retried without losing pending JSON", () 
 test("swapping names cannot overwrite or delete another workspace's JSON", () => {
   const { services, workspace, output } = setup("First");
   const other = services.workspaces.create({ name: "Second" });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   services.workspaces.update(workspace.id, { name: "Second" });
   services.workspaces.update(other.id, { name: "First" });
-  jest.advanceTimersByTime(5000);
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   const documents = readdirSync(output).map((file) =>
     WorkspaceDocumentSchema.parse(JSON.parse(readFileSync(join(output, file), "utf8"))),
   );

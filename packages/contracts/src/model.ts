@@ -27,6 +27,8 @@ const optionalText = z.string().max(20_000).nullable().optional();
 /* Workspace                                                           */
 /* ------------------------------------------------------------------ */
 
+export const AUTO_EXPORT_DELAY_MS = 3_000;
+
 export const AutomaticExportSchema = z.enum(["disabled", "mermaid"]);
 export type AutomaticExport = z.infer<typeof AutomaticExportSchema>;
 

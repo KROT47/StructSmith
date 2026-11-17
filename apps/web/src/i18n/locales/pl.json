@@ -159,7 +159,7 @@
   "workspaceSettings": {
     "title": "Ustawienia przestrzeni",
     "automaticExport": "Automatyczny eksport Mermaid",
-    "automaticExportHint": "Zapisuj wszystkie diagramy w pliku Markdown z blokami Mermaid. Zmiany są zapisywane po 5 sekundach bez kolejnych zmian."
+    "automaticExportHint": "Zapisuj wszystkie diagramy w pliku Markdown z blokami Mermaid. Zmiany są zapisywane po {{seconds}} sekundach bez kolejnych zmian."
   },
   "layoutAlgorithms": {
     "dagre": "Hierarchiczny (domyślny)",

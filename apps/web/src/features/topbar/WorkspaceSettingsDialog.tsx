@@ -1,4 +1,4 @@
-import type { AutomaticExport, Workspace } from "@structsmith/contracts";
+import { AUTO_EXPORT_DELAY_MS, type AutomaticExport, type Workspace } from "@structsmith/contracts";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -70,7 +70,7 @@ export function WorkspaceSettingsDialog({
               />
             </div>
             <p id="automatic-export-hint" className="text-xs text-muted-foreground">
-              {t("workspaceSettings.automaticExportHint")}
+              {t("workspaceSettings.automaticExportHint", { seconds: AUTO_EXPORT_DELAY_MS / 1000 })}
             </p>
           </div>
           <DialogFooter>

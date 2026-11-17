@@ -151,7 +151,7 @@
   "workspaceSettings": {
     "title": "Workspace settings",
     "automaticExport": "Automatic Mermaid export",
-    "automaticExportHint": "Save all diagrams in a Markdown file with Mermaid blocks. Updates are saved after 5 seconds without changes."
+    "automaticExportHint": "Save all diagrams in a Markdown file with Mermaid blocks. Updates are saved after {{seconds}} seconds without changes."
   },
   "layoutAlgorithms": {
     "dagre": "Hierarchical (default)",
