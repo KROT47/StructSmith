@@ -288,7 +288,7 @@ describe("workspace settings", () => {
         JSON.parse(JSON.stringify(services.model.getDocument(workspace.id))),
       );
       expect(document.workspace.settings).toEqual({ automaticExport: "mermaid" });
-      const imported = services.imports.importDocument(document);
+      const imported = services.imports.importDocument(document, { name: "Imported" });
       expect(services.workspaces.get(imported.id).settings).toEqual({
         automaticExport: "mermaid",
       });

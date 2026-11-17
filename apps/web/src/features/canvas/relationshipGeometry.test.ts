@@ -149,7 +149,7 @@ test("relationship presentation is view-owned, guarded, previewable, portable an
     });
 
     const document = WorkspaceDocumentSchema.parse(services.model.getDocument(workspace.id));
-    const imported = services.imports.importDocument(document);
+    const imported = services.imports.importDocument(document, { name: "Imported" });
     const importedView = services.views
       .listDetailed(imported.id)
       .find((candidate) => candidate.key === view.key);
@@ -199,7 +199,7 @@ test("relationship presentation is view-owned, guarded, previewable, portable an
       ),
     }));
     expect(() =>
-      services.imports.importDocument(WorkspaceDocumentSchema.parse(legacy)),
+      services.imports.importDocument(WorkspaceDocumentSchema.parse(legacy), { name: "Legacy" }),
     ).not.toThrow();
   } finally {
     close();

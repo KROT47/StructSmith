@@ -91,6 +91,7 @@
     "revision": "rewizja {{revision}}",
     "createTitle": "Nowa przestrzeń",
     "createHint": "Przestrzeń zawiera jeden model architektury i dowolną liczbę widoków.",
+    "workspaceNameTaken": "Przestrzeń o tej nazwie już istnieje. Wybierz inną nazwę.",
     "editTitle": "Edytuj przestrzeń",
     "editHint": "Zmień nazwę, opis lub tryb walidacji przestrzeni.",
     "modeLabel": "Tryb walidacji",

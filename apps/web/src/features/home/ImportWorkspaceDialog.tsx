@@ -1,4 +1,5 @@
 import type { Workspace } from "@structsmith/contracts";
+import { ERROR_CODES } from "@structsmith/contracts";
 import { AlertCircle, Check, FileText, Loader2, Upload, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
@@ -127,7 +128,13 @@ export function ImportWorkspaceDialog({ onClose, onImported }: ImportWorkspaceDi
           : await api.importMermaidWorkspace(input.source, name.trim());
       onImported(workspace);
     } catch (cause) {
-      setError(cause instanceof ApiError ? cause.message : t("home.importFailed"));
+      setError(
+        cause instanceof ApiError
+          ? cause.code === ERROR_CODES.WORKSPACE_NAME_TAKEN
+            ? t("home.workspaceNameTaken")
+            : cause.message
+          : t("home.importFailed"),
+      );
     } finally {
       submitting.current = false;
       setSaving(false);

@@ -7,6 +7,7 @@ import type {
 } from "@structsmith/contracts";
 import { WorkspaceSettingsSchema } from "@structsmith/contracts";
 import {
+  assertWorkspaceNameAvailable,
   captureDocument,
   type MutationOptions,
   mutate,
@@ -39,6 +40,7 @@ export class WorkspaceService {
       updatedAt: timestamp,
     };
     this.ctx.store.transaction((repos) => {
+      assertWorkspaceNameAvailable(repos, workspace.name);
       repos.workspaces.insert(workspace);
       repos.activity.insert({
         workspaceId: workspace.id,
@@ -63,6 +65,9 @@ export class WorkspaceService {
     options: MutationOptions = {},
   ): { result: Workspace; revision: number } {
     const mutation = mutate(this.ctx, workspaceId, options, (repos, workspace) => {
+      if (input.name !== undefined) {
+        assertWorkspaceNameAvailable(repos, input.name, workspaceId);
+      }
       const next: Workspace = {
         ...workspace,
         name: input.name ?? workspace.name,

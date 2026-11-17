@@ -6,7 +6,12 @@ import type {
   WorkspaceDocument,
 } from "@structsmith/contracts";
 import { ERROR_CODES } from "@structsmith/contracts";
-import { captureDocument, requireWorkspace, type ServiceContext } from "../context";
+import {
+  assertWorkspaceNameAvailable,
+  captureDocument,
+  requireWorkspace,
+  type ServiceContext,
+} from "../context";
 import { DomainError } from "../errors";
 import { createId, nowIso } from "../ids";
 import { hidesLiftedRelationships } from "../implied";
@@ -164,6 +169,7 @@ export class SnapshotService {
         );
       }
       const workspace = requireWorkspace(repos, snapshot.workspaceId);
+      assertWorkspaceNameAvailable(repos, snapshot.document.workspace.name, workspace.id);
 
       const undoPoint = writeSnapshot(
         repos,

@@ -53,6 +53,28 @@ export function requireWorkspace(repos: Repositories, workspaceId: string): Work
   return workspace;
 }
 
+export function assertWorkspaceNameAvailable(
+  repos: Repositories,
+  name: string,
+  workspaceId?: string,
+): void {
+  const normalizedName = name.trim().toLowerCase();
+  if (
+    repos.workspaces
+      .list()
+      .some(
+        (workspace) =>
+          workspace.id !== workspaceId && workspace.name.trim().toLowerCase() === normalizedName,
+      )
+  ) {
+    throw new DomainError(
+      ERROR_CODES.WORKSPACE_NAME_TAKEN,
+      `A workspace named "${name}" already exists. Choose a different name.`,
+      409,
+    );
+  }
+}
+
 export function assertRevision(workspace: Workspace, expected: number | undefined): void {
   if (expected !== undefined && expected !== workspace.revision) {
     throw conflict(

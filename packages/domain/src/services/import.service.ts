@@ -1,6 +1,6 @@
 import type { Workspace, WorkspaceDocument } from "@structsmith/contracts";
 import { ImportMermaidRequestSchema, WorkspaceDocumentSchema } from "@structsmith/contracts";
-import { requireWorkspace, type ServiceContext } from "../context";
+import { assertWorkspaceNameAvailable, requireWorkspace, type ServiceContext } from "../context";
 import { badRequest, DomainError } from "../errors";
 import { createId, nowIso } from "../ids";
 import { parseMermaidToWorkspaceDocument } from "../mermaid-import";
@@ -121,6 +121,7 @@ export class ImportService {
     const workspace = this.ctx.store.transaction((repos) => {
       if (mode === "overwrite") {
         const existing = requireWorkspace(repos, document.workspace.id);
+        assertWorkspaceNameAvailable(repos, options.name ?? document.workspace.name, existing.id);
         restoreDocument(repos, document);
         const next: Workspace = {
           ...existing,
@@ -141,6 +142,7 @@ export class ImportService {
         return next;
       }
 
+      assertWorkspaceNameAvailable(repos, options.name ?? document.workspace.name);
       const newId = createId(options.name ?? document.workspace.name);
       const idMap = new Map<string, string>();
       const mapId = (oldId: string): string => {

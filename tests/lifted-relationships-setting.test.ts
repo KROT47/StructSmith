@@ -98,7 +98,9 @@ test("component views hide lifted relationships until the view setting says othe
     const importedView = withoutFlag.views.find((view) => view.id === components.id);
     if (!importedView) throw new Error("Missing component view");
     delete importedView.settings.hideLiftedRelationships;
-    const imported = services.imports.importDocument(WorkspaceDocumentSchema.parse(withoutFlag));
+    const imported = services.imports.importDocument(WorkspaceDocumentSchema.parse(withoutFlag), {
+      name: "Imported",
+    });
     const restored = services.views.list(imported.id).find((view) => view.name === "Components");
     expect(restored?.settings.hideLiftedRelationships).toBe(true);
   } finally {

@@ -1,4 +1,5 @@
 import type { ArchitectureOperationInput } from "@structsmith/contracts";
+import { ERROR_CODES } from "@structsmith/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -81,6 +82,10 @@ export function useApiErrorHandler(): (error: unknown) => void {
 
   return (error: unknown) => {
     if (error instanceof ApiError) {
+      if (error.code === ERROR_CODES.WORKSPACE_NAME_TAKEN) {
+        toast.error(t("home.workspaceNameTaken"));
+        return;
+      }
       if (error.isConflict) {
         toast.warning(t("toast.conflict"));
         void queryClient.invalidateQueries();

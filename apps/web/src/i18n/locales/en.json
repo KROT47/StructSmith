@@ -85,6 +85,7 @@
     "revision": "revision {{revision}}",
     "createTitle": "New workspace",
     "createHint": "A workspace holds one architecture model with any number of views.",
+    "workspaceNameTaken": "A workspace with this name already exists. Choose a different name.",
     "editTitle": "Edit workspace",
     "editHint": "Change the workspace name, description or validation mode.",
     "modeLabel": "Validation mode",

@@ -243,7 +243,7 @@ describe("Mermaid import domain persistence", () => {
     const { services, close } = createTestContext();
     try {
       const workspace = services.imports.importMermaid("graph LR; A-->B");
-      const other = services.imports.importMermaid("graph LR; A-->B");
+      const other = services.imports.importMermaid("graph LR; A-->B", { name: "Other" });
       const original = services.model.getDocument(workspace.id);
       const otherOriginal = services.model.getDocument(other.id);
       expect(() => services.imports.importMermaid("graph LR; C", { mode: "overwrite" })).toThrow(

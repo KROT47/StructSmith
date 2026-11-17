@@ -208,8 +208,9 @@ test("swapping names cannot overwrite or delete another workspace's JSON", () =>
   const { services, workspace, output } = setup("First");
   const other = services.workspaces.create({ name: "Second" });
   jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
-  services.workspaces.update(workspace.id, { name: "Second" });
+  services.workspaces.update(workspace.id, { name: "Temporary" });
   services.workspaces.update(other.id, { name: "First" });
+  services.workspaces.update(workspace.id, { name: "Second" });
   jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   const documents = readdirSync(output).map((file) =>
     WorkspaceDocumentSchema.parse(JSON.parse(readFileSync(join(output, file), "utf8"))),
