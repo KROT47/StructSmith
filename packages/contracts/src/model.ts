@@ -27,11 +27,15 @@ const optionalText = z.string().max(20_000).nullable().optional();
 /* Workspace                                                           */
 /* ------------------------------------------------------------------ */
 
-export const AutomaticExportSchema = z.enum(["disabled", "json", "mermaid"]);
+export const AutomaticExportSchema = z.enum(["disabled", "mermaid"]);
 export type AutomaticExport = z.infer<typeof AutomaticExportSchema>;
 
 export const WorkspaceSettingsSchema = z.object({
-  automaticExport: AutomaticExportSchema.default("disabled"),
+  // JSON persistence is mandatory now; older documents may still select it.
+  automaticExport: z
+    .union([AutomaticExportSchema, z.literal("json")])
+    .default("disabled")
+    .transform((value) => (value === "json" ? "disabled" : value)),
 });
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 
@@ -52,7 +56,7 @@ export const CreateWorkspaceSchema = z.object({
   name,
   description: optionalText,
   mode: WorkspaceModeSchema.default("relaxed"),
-  settings: WorkspaceSettingsSchema.optional(),
+  settings: z.object({ automaticExport: AutomaticExportSchema.default("disabled") }).optional(),
 });
 export type CreateWorkspaceInput = z.input<typeof CreateWorkspaceSchema>;
 

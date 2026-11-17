@@ -1,8 +1,12 @@
 node_modules/
 dist/
-# Local models, backups and SQLite sidecar files
-data/
+# SQLite is a local cache; workspace JSON and Mermaid files can be committed.
+data/*
 *.db
+*.db.lock*
+*.db.json-source
+*.db.rebuild-*
+.*.tmp
 *.db-shm
 *.db-wal
 *.sqlite

@@ -158,11 +158,8 @@
   },
   "workspaceSettings": {
     "title": "Ustawienia przestrzeni",
-    "automaticExport": "Automatyczny eksport",
-    "automaticExportHint": "Eksportuj wszystkie widoki po zapisaniu ustawień. Zmienione widoki eksportuj po 5 sekundach bez zmian.",
-    "disabled": "Wyłączony",
-    "json": "Model semantyczny (JSON)",
-    "mermaid": "Diagram Mermaid"
+    "automaticExport": "Automatyczny eksport Mermaid",
+    "automaticExportHint": "Zapisuj wszystkie diagramy w pliku Markdown z blokami Mermaid. Zmiany są zapisywane po 5 sekundach bez kolejnych zmian."
   },
   "layoutAlgorithms": {
     "dagre": "Hierarchiczny (domyślny)",

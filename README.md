@@ -450,7 +450,7 @@ Errors always use the same envelope:
 - Presales records linked to elements, with a subtle risk indicator on the canvas
 - Deterministic validator with error / warning / info levels
 - Export: semantic JSON, Mermaid, PNG, SVG. Import: native JSON and Mermaid flowcharts
-- Workspace settings with optional automatic semantic JSON or Mermaid exports
+- Mandatory JSON workspace persistence with optional automatic Mermaid Markdown exports
 - Snapshots with restore; undo/redo (`⌘Z` / `⌘⇧Z`) rides on them
 - Command palette (`⌘K`), `F` to fit the view, `Delete`, `Escape`
 - Light / dark / system themes, English and Polish UI
@@ -459,20 +459,44 @@ Errors always use the same envelope:
   model and Codex thinking settings, streamed replies with collapsible reasoning,
   and topic renaming, archiving, restoration and drag-and-drop ordering
 
-### Automatic exports
+### Workspace files and automatic exports
 
-In a workspace, open **Settings** beside **Add** and choose **Automatic export**.
-It is **Disabled** by default. Saving an enabled format immediately exports the
-workspace; disabling it cancels pending exports. Later changes to any view or its
-model, including MCP edits, restart one shared workspace timer and trigger an
-export after five seconds without further changes.
-JSON writes one complete workspace document to
-`data/auto-exports/<workspace_snake_case>.json`, including workspaces with no views.
-Mermaid writes one Markdown file to `data/auto-exports/<workspace_snake_case>.md`,
-with a heading and fenced `mermaid` block for each view. A workspace with no views
-still exports a Markdown workspace heading.
-With a custom `DATABASE_PATH`, `auto-exports/` lives beside the database.
-Stable suffixes keep colliding or long workspace names separate.
+Every workspace is automatically saved as a complete JSON document, including
+workspaces with no views. JSON is the source of truth: on every startup StructSmith
+builds a fresh SQLite cache from JSON files in the workspace files directory,
+preserving workspace and entity IDs, revisions, timestamps, settings and layouts.
+Activity and snapshots start empty. A missing file means that workspace is absent;
+an empty directory means an empty model. Invalid JSON, duplicate IDs or broken
+references produce a startup error naming the source file, and the API/MCP do not
+start. The previous cache and source JSON are retained when restoration fails.
+
+By default, files live in `data/auto-exports/`, or `auto-exports/` beside a custom
+`DATABASE_PATH`. Set `WORKSPACE_FILES_DIR` to another directory, such as a folder in
+your architecture repository. JSON filenames use the workspace name in snake case;
+renaming or deleting a workspace removes its previous files. The default directory is allowed by `.gitignore`; the SQLite cache and chat
+history stay ignored. With Docker, bind-mount `WORKSPACE_FILES_DIR` into a host
+repository if you want to commit it from the host (the default is inside `/data`).
+
+Changes, including MCP edits, save after five seconds without further changes.
+Files are published by atomic replacement so Git reads complete documents. Pending
+changes are flushed on clean shutdown; an abrupt termination can lose changes
+inside that five-second window. After `git pull` or changing branches, restart
+StructSmith to rebuild the model from the selected JSON. The running instance does
+not watch for external changes; avoid editing the same files from Git and the app
+at the same time.
+
+In **Settings** beside **Add**, use **Automatic Mermaid export** to enable or
+disable an additional Markdown file with a heading and fenced `mermaid` block for
+each view. Saving the setting exports immediately; JSON persistence is always on.
+Older JSON export settings are read as Mermaid disabled. Legacy nested per-view
+JSON files are supported when their workspace documents agree; conflicting copies
+stop startup and report both paths.
+
+For an existing installation whose workspace directory has never been initialized,
+StructSmith first converts the current SQLite model to JSON once. Subsequent starts
+always use JSON. A local `.json-source` sidecar records that conversion; keep it
+with the cache, outside Git. Only one process may own a cache: use the running
+server's HTTP MCP endpoint instead of starting `mcp:stdio` against the same path.
 
 ### Chat with local agents
 
@@ -604,7 +628,8 @@ to `supportedLanguages`. No copy is hard-coded in components.
 | --- | --- | --- |
 | `PORT` | `3000` (`8080` in Docker) | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address |
-| `DATABASE_PATH` | `./data/architecture.db` | SQLite file |
+| `DATABASE_PATH` | `./data/architecture.db` | SQLite cache, rebuilt from JSON at startup |
+| `WORKSPACE_FILES_DIR` | `auto-exports/` beside SQLite | Authoritative JSON workspace files and optional Mermaid Markdown |
 | `MIGRATIONS_DIR` | `./migrations` | Migration folder |
 | `AUTH_MODE` | `none` | `none` or `token` |
 | `APP_TOKEN` | – | Bearer token required when `AUTH_MODE=token` |

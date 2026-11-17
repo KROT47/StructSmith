@@ -1,4 +1,3 @@
-import { dirname, join } from "node:path";
 import {
   createDatabase,
   type DatabaseHandle,
@@ -9,6 +8,7 @@ import { createServices, InMemoryEventBus, type Services } from "@structsmith/do
 import { AutoExportScheduler } from "./auto-export";
 import type { AppConfig } from "./config";
 import { seedExampleWorkspace } from "./seed";
+import { rebuildDatabase } from "./startup-rebuild";
 
 export interface AppContext {
   config: AppConfig;
@@ -18,34 +18,39 @@ export interface AppContext {
 }
 
 export function createAppContext(config: AppConfig): AppContext {
-  const database = createDatabase(config.databasePath);
-  const migration = runMigrations(database.sqlite, config.migrationsDir);
-  if (migration.applied.length > 0) {
-    console.log(
-      `[db] applied ${migration.applied.length} migration(s): ${migration.applied.join(", ")}`,
-    );
-  }
+  const restored = config.databasePath === ":memory:" ? null : rebuildDatabase(config);
+  const database = restored?.database ?? createDatabase(":memory:");
+  let autoExports: AutoExportScheduler | undefined;
+  try {
+    if (!restored) runMigrations(database.sqlite, config.migrationsDir);
+    const bus = new InMemoryEventBus();
+    const services = createServices(new DrizzleStore(database.db), bus);
 
-  const bus = new InMemoryEventBus();
-  const store = new DrizzleStore(database.db);
-  const services = createServices(store, bus);
-  const autoExports = new AutoExportScheduler(
-    services,
-    join(dirname(config.databasePath), "auto-exports"),
-  );
-  const closeDatabase = database.close;
-  database.close = () => {
-    autoExports.close();
-    closeDatabase();
-  };
-
-  if (config.seedExample) {
-    try {
-      seedExampleWorkspace(services);
-    } catch (error) {
-      console.warn("[seed] could not seed the example workspace:", error);
+    // Restoration happens before export listeners, API clients and MCP can write.
+    if (config.seedExample && (!restored || restored.firstRun)) seedExampleWorkspace(services);
+    if (restored) {
+      autoExports = new AutoExportScheduler(services, restored.directory);
+      if (restored.firstRun) autoExports.exportAll();
     }
+    const closeDatabase = database.close;
+    let closed = false;
+    database.close = () => {
+      if (closed) return;
+      closed = true;
+      try {
+        autoExports?.close();
+      } finally {
+        try {
+          closeDatabase();
+        } finally {
+          restored?.release();
+        }
+      }
+    };
+    return { config, database, services, bus };
+  } catch (error) {
+    database.close();
+    restored?.release();
+    throw error;
   }
-
-  return { config, database, services, bus };
 }

@@ -1,0 +1,106 @@
+import { expect, test } from "bun:test";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createTestContext } from "../../../tests/helpers";
+import { readWorkspaceDocuments, readWorkspaceFiles, writeWorkspaceFile } from "./workspace-files";
+
+test("workspace files preserve documents and report malformed files with their path", () => {
+  const directory = mkdtempSync(join(tmpdir(), "structsmith-json-files-"));
+  const context = createTestContext();
+  try {
+    const workspace = context.services.workspaces.create({ name: "Portable" });
+    const document = context.services.model.getDocument(workspace.id);
+    const file = join(directory, "portable.json");
+    writeWorkspaceFile(file, `${JSON.stringify(document, null, 2)}\n`);
+    expect(readWorkspaceDocuments(directory)).toEqual([document]);
+    expect(readdirSync(directory)).toEqual(["portable.json"]);
+    writeFileSync(join(directory, "broken.json"), "{ broken");
+    expect(() => readWorkspaceDocuments(directory)).toThrow("broken.json");
+    expect(readFileSync(file, "utf8")).toContain("Portable");
+    rmSync(join(directory, "broken.json"));
+    writeFileSync(join(directory, "invalid.json"), '{"formatVersion":9}');
+    expect(() => readWorkspaceDocuments(directory)).toThrow("invalid.json");
+  } finally {
+    context.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("legacy nested view exports restore each identical workspace once and retain all file paths", () => {
+  const directory = mkdtempSync(join(tmpdir(), "structsmith-legacy-json-"));
+  const context = createTestContext();
+  try {
+    const workspace = context.services.workspaces.create({ name: "Portable" });
+    const document = context.services.model.getDocument(workspace.id);
+    const nested = join(directory, "portable", "nested");
+    mkdirSync(nested, { recursive: true });
+    const paths = [join(directory, "portable", "context.json"), join(nested, "containers.json")];
+    for (const path of paths) writeWorkspaceFile(path, JSON.stringify(document));
+    writeWorkspaceFile(join(directory, "portable.json"), JSON.stringify(document));
+
+    expect(readWorkspaceDocuments(directory)).toEqual([document]);
+    expect(
+      readWorkspaceFiles(directory)
+        .map(({ path }) => path)
+        .sort(),
+    ).toEqual([...paths, join(directory, "portable.json")].sort());
+    context.services.imports.restoreDocuments(readWorkspaceDocuments(directory));
+    expect(context.services.workspaces.list()).toEqual([document.workspace]);
+    expect(context.services.model.getDocument(workspace.id)).toEqual(document);
+  } finally {
+    context.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("conflicting duplicate workspace exports fail with both source paths", () => {
+  const directory = mkdtempSync(join(tmpdir(), "structsmith-conflicting-json-"));
+  const context = createTestContext();
+  try {
+    const workspace = context.services.workspaces.create({ name: "Portable" });
+    const document = context.services.model.getDocument(workspace.id);
+    mkdirSync(join(directory, "legacy"));
+    const first = join(directory, "portable.json");
+    const second = join(directory, "legacy", "context.json");
+    writeWorkspaceFile(first, JSON.stringify(document));
+    writeWorkspaceFile(
+      second,
+      JSON.stringify({ ...document, workspace: { ...document.workspace, name: "Different" } }),
+    );
+
+    expect(() => readWorkspaceDocuments(directory)).toThrow(first);
+    expect(() => readWorkspaceDocuments(directory)).toThrow(second);
+    expect(readWorkspaceFiles(directory)).toHaveLength(2);
+  } finally {
+    context.close();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("nested invalid JSON is reported while symbolic files and directories are not followed", () => {
+  const directory = mkdtempSync(join(tmpdir(), "structsmith-nested-json-"));
+  const outside = mkdtempSync(join(tmpdir(), "structsmith-outside-json-"));
+  try {
+    const broken = join(outside, "broken.json");
+    writeFileSync(broken, "{broken");
+    symlinkSync(broken, join(directory, "linked.json"));
+    symlinkSync(outside, join(directory, "linked-directory"), "dir");
+    expect(readWorkspaceFiles(directory)).toEqual([]);
+    mkdirSync(join(directory, "nested"));
+    const nestedBroken = join(directory, "nested", "broken.json");
+    writeFileSync(nestedBroken, "{broken");
+    expect(() => readWorkspaceFiles(directory)).toThrow(nestedBroken);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});

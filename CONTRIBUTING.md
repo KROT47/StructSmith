@@ -11,7 +11,7 @@ bun run dev
 ```
 
 The API starts on `:3000`, the Vite dev server on <http://localhost:5173>, and the
-SQLite database is created and migrated on first boot. No Docker, Postgres, Redis,
+SQLite cache is rebuilt from workspace JSON at startup. No Docker, Postgres, Redis,
 Java or Python needed. `bun run stop` frees both ports if a process is left behind.
 
 ## Before opening a pull request
@@ -57,7 +57,8 @@ very good reason, stated in the pull request.
    `packages/contracts`. The frontend, the REST API and the MCP tool schemas all
    derive from those Zod schemas.
 5. **Mutations go through the domain services**, which own the revision guard, the
-   activity log and snapshots. Write paths that bypass them break optimistic
+   activity log and snapshots. JSON files persist the model across launches; activity
+   and snapshots are session history and reset on startup. Write paths that bypass them break optimistic
    concurrency between a user and an AI client.
 
 ## Project layout

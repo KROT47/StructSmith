@@ -3,7 +3,14 @@ import { createAppContext } from "./bootstrap";
 import { loadConfig } from "./config";
 
 const config = loadConfig();
-const ctx = createAppContext(config);
+const ctx = (() => {
+  try {
+    return createAppContext(config);
+  } catch (error) {
+    console.error(`[startup] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+})();
 const { app, mcp, agents } = createApp(ctx);
 
 const server = app.listen(config.port, config.host, (error) => {
@@ -30,11 +37,18 @@ const shutdown = async (signal: string): Promise<void> => {
   console.log(`\n[server] ${signal} received, shutting down.`);
   await mcp.closeAll().catch(() => undefined);
   await agents?.close().catch(() => undefined);
-  server.close(() => {
-    ctx.database.close();
-    process.exit(0);
-  });
-  setTimeout(() => process.exit(0), 3000).unref();
+  const finish = () => {
+    try {
+      ctx.database.close();
+      process.exit(0);
+    } catch (error) {
+      console.error("[shutdown] Could not save workspace JSON:", error);
+      process.exit(1);
+    }
+  };
+  server.close(finish);
+  // SSE connections may outlive the grace period; flush exports on this path too.
+  setTimeout(finish, 3000).unref();
 };
 
 process.on("SIGINT", () => void shutdown("SIGINT"));

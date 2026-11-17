@@ -1,8 +1,4 @@
-import {
-  type AutomaticExport,
-  AutomaticExportSchema,
-  type Workspace,
-} from "@structsmith/contracts";
+import type { AutomaticExport, Workspace } from "@structsmith/contracts";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -15,13 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useApiErrorHandler } from "@/hooks/useApi";
 import { api } from "@/lib/api";
 import { invalidateWorkspace } from "@/lib/query";
@@ -67,28 +57,18 @@ export function WorkspaceSettingsDialog({
           }}
         >
           <div className="grid gap-1.5">
-            <Label htmlFor="workspace-automatic-export">
-              {t("workspaceSettings.automaticExport")}
-            </Label>
-            <Select
-              value={automaticExport}
-              onValueChange={(value) => setAutomaticExport(AutomaticExportSchema.parse(value))}
-              disabled={saving}
-            >
-              <SelectTrigger
+            <div className="flex items-center justify-between gap-3">
+              <Label htmlFor="workspace-automatic-export">
+                {t("workspaceSettings.automaticExport")}
+              </Label>
+              <Switch
                 id="workspace-automatic-export"
+                checked={automaticExport === "mermaid"}
+                onCheckedChange={(checked) => setAutomaticExport(checked ? "mermaid" : "disabled")}
+                disabled={saving}
                 aria-describedby="automatic-export-hint"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AutomaticExportSchema.options.map((format) => (
-                  <SelectItem key={format} value={format}>
-                    {t(`workspaceSettings.${format}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              />
+            </div>
             <p id="automatic-export-hint" className="text-xs text-muted-foreground">
               {t("workspaceSettings.automaticExportHint")}
             </p>

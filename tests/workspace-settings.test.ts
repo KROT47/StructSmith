@@ -39,9 +39,11 @@ describe("workspace settings", () => {
         const services = createServices(new DrizzleStore(database.db), new InMemoryEventBus());
         workspaceId = services.workspaces.create({
           name: "Persistent",
-          settings: { automaticExport: "json" },
+          settings: { automaticExport: "disabled" },
         }).id;
-        expect(services.workspaces.get(workspaceId).settings).toEqual({ automaticExport: "json" });
+        expect(services.workspaces.get(workspaceId).settings).toEqual({
+          automaticExport: "disabled",
+        });
         services.workspaces.update(workspaceId, { settings: { automaticExport: "mermaid" } });
       } finally {
         database.close();
@@ -62,7 +64,7 @@ describe("workspace settings", () => {
   });
 
   test("REST payload schemas reject unsupported automatic export formats", () => {
-    for (const automaticExport of ["disabled", "json", "mermaid"] as const) {
+    for (const automaticExport of ["disabled", "mermaid"] as const) {
       expect(
         CreateWorkspaceSchema.parse({ name: "Valid", settings: { automaticExport } }).settings,
       ).toEqual({ automaticExport });
@@ -70,13 +72,14 @@ describe("workspace settings", () => {
         automaticExport,
       });
     }
-    expect(
-      CreateWorkspaceSchema.safeParse({ name: "Invalid", settings: { automaticExport: "yaml" } })
-        .success,
-    ).toBe(false);
-    expect(UpdateWorkspaceSchema.safeParse({ settings: { automaticExport: "yaml" } }).success).toBe(
-      false,
-    );
+    for (const automaticExport of ["json", "yaml"]) {
+      expect(
+        CreateWorkspaceSchema.safeParse({ name: "Invalid", settings: { automaticExport } }).success,
+      ).toBe(false);
+      expect(UpdateWorkspaceSchema.safeParse({ settings: { automaticExport } }).success).toBe(
+        false,
+      );
+    }
   });
 
   test("settings and metadata patches preserve every omitted field", () => {
@@ -89,13 +92,13 @@ describe("workspace settings", () => {
       });
       const updated = services.workspaces.update(
         workspace.id,
-        UpdateWorkspaceSchema.parse({ settings: { automaticExport: "json" } }),
+        UpdateWorkspaceSchema.parse({ settings: { automaticExport: "mermaid" } }),
       );
       expect(updated.result).toMatchObject({
         name: "Unchanged",
         mode: "strict",
         description: "Description",
-        settings: { automaticExport: "json" },
+        settings: { automaticExport: "mermaid" },
         revision: updated.revision,
       });
       services.workspaces.update(workspace.id, UpdateWorkspaceSchema.parse({ settings: {} }));
@@ -104,13 +107,13 @@ describe("workspace settings", () => {
         name: "Renamed",
         mode: "strict",
         description: "Description",
-        settings: { automaticExport: "json" },
+        settings: { automaticExport: "mermaid" },
       });
       services.workspaces.update(workspace.id, UpdateWorkspaceSchema.parse({ mode: "relaxed" }));
       expect(services.workspaces.get(workspace.id)).toMatchObject({
         name: "Renamed",
         mode: "relaxed",
-        settings: { automaticExport: "json" },
+        settings: { automaticExport: "mermaid" },
       });
     } finally {
       close();
@@ -135,10 +138,10 @@ describe("workspace settings", () => {
       });
       services.workspaces.update(
         workspace.id,
-        { settings: { automaticExport: "json" } },
+        { settings: { automaticExport: "mermaid" } },
         { source: "mcp", expectedRevision: 1 },
       );
-      services.workspaces.update(workspace.id, { settings: { automaticExport: "json" } });
+      services.workspaces.update(workspace.id, { settings: { automaticExport: "mermaid" } });
       services.workspaces.update(workspace.id, { settings: { automaticExport: "disabled" } });
       expect(events.filter((event) => event.type === "workspace.settings.changed")).toEqual([
         {
@@ -161,8 +164,8 @@ describe("workspace settings", () => {
         },
       ]);
       expect(observed).toEqual([
-        { revision: 2, automaticExport: "json" },
-        { revision: 3, automaticExport: "json" },
+        { revision: 2, automaticExport: "mermaid" },
+        { revision: 3, automaticExport: "mermaid" },
         { revision: 4, automaticExport: "disabled" },
       ]);
       expect(events.filter((event) => event.type === "workspace.changed")).toHaveLength(3);
@@ -181,7 +184,7 @@ describe("workspace settings", () => {
       expect(() =>
         services.workspaces.update(
           workspace.id,
-          { settings: { automaticExport: "json" } },
+          { settings: { automaticExport: "mermaid" } },
           { expectedRevision: 1 },
         ),
       ).toThrow("modified by someone else");
@@ -221,6 +224,30 @@ describe("workspace settings", () => {
       expect(imported.settings).toEqual({ automaticExport: "disabled" });
     } finally {
       close();
+    }
+  });
+
+  test("legacy JSON export settings normalize to disabled in documents and SQLite", () => {
+    const database = createDatabase(":memory:");
+    try {
+      runMigrations(database.sqlite, migrationsDir);
+      const services = createServices(new DrizzleStore(database.db), new InMemoryEventBus());
+      const workspace = services.workspaces.create({ name: "Legacy JSON export" });
+      const legacyDocument = {
+        ...services.model.getDocument(workspace.id),
+        workspace: { ...workspace, settings: { automaticExport: "json" } },
+      };
+      expect(WorkspaceDocumentSchema.parse(legacyDocument).workspace.settings).toEqual({
+        automaticExport: "disabled",
+      });
+      database.sqlite
+        .query("UPDATE workspaces SET settings_json = ? WHERE id = ?")
+        .run(JSON.stringify({ automaticExport: "json" }), workspace.id);
+      expect(services.workspaces.get(workspace.id).settings).toEqual({
+        automaticExport: "disabled",
+      });
+    } finally {
+      database.close();
     }
   });
 
@@ -280,9 +307,11 @@ describe("workspace settings", () => {
     try {
       const workspace = services.workspaces.create({ name: "Snapshot" });
       const snapshot = services.snapshots.create(workspace.id, "Initial");
-      services.workspaces.update(workspace.id, { settings: { automaticExport: "json" } });
+      services.workspaces.update(workspace.id, { settings: { automaticExport: "mermaid" } });
       services.snapshots.restore(snapshot.id);
-      expect(services.workspaces.get(workspace.id).settings).toEqual({ automaticExport: "json" });
+      expect(services.workspaces.get(workspace.id).settings).toEqual({
+        automaticExport: "mermaid",
+      });
     } finally {
       close();
     }

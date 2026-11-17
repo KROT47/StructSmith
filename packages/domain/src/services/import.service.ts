@@ -1,14 +1,115 @@
 import type { Workspace, WorkspaceDocument } from "@structsmith/contracts";
-import { ImportMermaidRequestSchema } from "@structsmith/contracts";
+import { ImportMermaidRequestSchema, WorkspaceDocumentSchema } from "@structsmith/contracts";
 import { requireWorkspace, type ServiceContext } from "../context";
 import { badRequest, DomainError } from "../errors";
 import { createId, nowIso } from "../ids";
 import { parseMermaidToWorkspaceDocument } from "../mermaid-import";
+import { wouldCreateCycle } from "../rules";
 import { restoreDocument } from "./snapshot.service";
+
+function checkDocumentReferences(document: WorkspaceDocument): void {
+  const elements = new Set(document.elements.map((element) => element.id));
+  const relationships = new Set(document.relationships.map((relationship) => relationship.id));
+  const views = new Set(document.views.map((view) => view.id));
+  const boundaries = document.views.flatMap((view) => view.boundaries);
+  const allBoundaries = boundaries.length > 0 ? boundaries : (document.boundaries ?? []);
+  const boundaryIds = new Set(allBoundaries.map((boundary) => boundary.id));
+  const parentByElement = new Map(
+    document.elements.map((element) => [element.id, element.parentId]),
+  );
+  const parentByBoundary = new Map(
+    allBoundaries.map((boundary) => [boundary.id, boundary.parentBoundaryId]),
+  );
+  const requireReference = (valid: boolean): void => {
+    if (!valid) throw badRequest(`Invalid references in workspace "${document.workspace.id}".`);
+  };
+  for (const entity of [
+    ...document.elements,
+    ...document.relationships,
+    ...document.views,
+    ...allBoundaries,
+    ...document.records,
+  ]) {
+    requireReference(entity.workspaceId === document.workspace.id);
+  }
+  for (const element of document.elements) {
+    requireReference(element.parentId === null || elements.has(element.parentId));
+    requireReference(
+      !wouldCreateCycle(element.id, element.parentId, (id) => parentByElement.get(id)),
+    );
+  }
+  for (const relationship of document.relationships) {
+    requireReference(
+      elements.has(relationship.sourceElementId) && elements.has(relationship.targetElementId),
+    );
+  }
+  for (const view of document.views) {
+    requireReference(view.scopeElementId === null || elements.has(view.scopeElementId));
+    requireReference(
+      new Set(view.elements.map((entry) => entry.elementId)).size === view.elements.length,
+    );
+    requireReference(
+      new Set(view.relationships.map((entry) => entry.relationshipId)).size ===
+        view.relationships.length,
+    );
+    for (const entry of view.elements) {
+      requireReference(entry.viewId === view.id && elements.has(entry.elementId));
+    }
+    for (const entry of view.relationships) {
+      requireReference(entry.viewId === view.id && relationships.has(entry.relationshipId));
+    }
+    for (const boundary of view.boundaries) requireReference(boundary.viewId === view.id);
+  }
+  for (const boundary of allBoundaries) {
+    requireReference(views.has(boundary.viewId));
+    requireReference(
+      boundary.parentBoundaryId === null || boundaryIds.has(boundary.parentBoundaryId),
+    );
+    requireReference(
+      !wouldCreateCycle(boundary.id, boundary.parentBoundaryId, (id) => parentByBoundary.get(id)),
+    );
+    for (const elementId of boundary.elementIds) requireReference(elements.has(elementId));
+  }
+  for (const record of document.records) {
+    for (const elementId of record.linkedElementIds) requireReference(elements.has(elementId));
+  }
+}
+
+const restoreError = (document: WorkspaceDocument, error: unknown): DomainError =>
+  Object.assign(
+    badRequest(
+      `Could not restore workspace "${document.workspace.id}" (${document.workspace.name}): ${error instanceof Error ? error.message : String(error)}`,
+    ),
+    { workspaceId: document.workspace.id },
+  );
 
 /** Shared import domain layer for native JSON and Mermaid (REST and MCP). */
 export class ImportService {
   constructor(private readonly ctx: ServiceContext) {}
+
+  /** Rebuild startup state without changing identities or creating session history. */
+  restoreDocuments(input: readonly WorkspaceDocument[]): void {
+    const documents = input.map((document) => {
+      try {
+        const parsed = WorkspaceDocumentSchema.parse(document);
+        checkDocumentReferences(parsed);
+        return parsed;
+      } catch (error) {
+        throw restoreError(document, error);
+      }
+    });
+    this.ctx.store.transaction((repos) => {
+      for (const workspace of repos.workspaces.list()) repos.workspaces.delete(workspace.id);
+      for (const document of documents) {
+        try {
+          repos.workspaces.insert(document.workspace);
+          restoreDocument(repos, document);
+        } catch (error) {
+          throw restoreError(document, error);
+        }
+      }
+    });
+  }
 
   importDocument(
     document: WorkspaceDocument,

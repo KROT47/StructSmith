@@ -19,6 +19,7 @@ export interface AppConfig {
   port: number;
   host: string;
   databasePath: string;
+  workspaceFilesDir?: string;
   migrationsDir: string;
   webDistDir: string | null;
   authMode: "none" | "token";
@@ -38,7 +39,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: Number(env.PORT ?? 3000),
     host: env.HOST ?? "0.0.0.0",
-    databasePath: resolvePath(env.DATABASE_PATH ?? join("data", "architecture.db")),
+    databasePath:
+      env.DATABASE_PATH === ":memory:"
+        ? ":memory:"
+        : resolvePath(env.DATABASE_PATH ?? join("data", "architecture.db")),
+    workspaceFilesDir: env.WORKSPACE_FILES_DIR ? resolvePath(env.WORKSPACE_FILES_DIR) : undefined,
     migrationsDir: resolvePath(env.MIGRATIONS_DIR ?? "migrations"),
     webDistDir: existsSync(join(webDist, "index.html")) ? webDist : null,
     authMode,

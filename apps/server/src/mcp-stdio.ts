@@ -9,7 +9,26 @@ import { createAppContext } from "./bootstrap";
 import { loadConfig } from "./config";
 
 const config = loadConfig();
-const ctx = createAppContext({ ...config, seedExample: false });
+const ctx = (() => {
+  try {
+    return createAppContext({ ...config, seedExample: false });
+  } catch (error) {
+    console.error(`[startup] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+})();
 const server = createMcpServer({ services: ctx.services, readOnly: config.mcpReadOnly });
 
-await server.connect(new StdioServerTransport());
+const transport = new StdioServerTransport();
+const close = () => {
+  try {
+    ctx.database.close();
+  } catch (error) {
+    console.error("[shutdown] Could not save workspace JSON:", error);
+    process.exitCode = 1;
+  }
+};
+transport.onclose = close;
+process.on("SIGINT", () => void server.close().finally(close));
+process.on("SIGTERM", () => void server.close().finally(close));
+await server.connect(transport);
