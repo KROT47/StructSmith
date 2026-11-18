@@ -1,6 +1,5 @@
-import { Database, SQLiteError } from "bun:sqlite";
-import { mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { Database } from "bun:sqlite";
+import { readFileSync } from "node:fs";
 import { type BunSQLiteDatabase, drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema";
 
@@ -10,26 +9,6 @@ export interface DatabaseHandle {
   db: Db;
   sqlite: Database;
   close(): void;
-}
-
-export const WORKSPACE_METADATA_DIR = ".structsmith";
-
-/** Coordinate writers sharing the workspace directory, including across containers. */
-export function acquireWorkspaceLock(directory: string): () => void {
-  const metadataDirectory = join(directory, WORKSPACE_METADATA_DIR);
-  mkdirSync(metadataDirectory, { recursive: true });
-  // Keep the lock file in place so every writer opens the same inode.
-  const lock = new Database(join(metadataDirectory, "lock.sqlite"));
-  try {
-    lock.exec("BEGIN IMMEDIATE");
-  } catch (error) {
-    lock.close();
-    if (error instanceof SQLiteError && error.code === "SQLITE_BUSY") {
-      throw new Error(`Workspace directory is already in use: ${directory}`, { cause: error });
-    }
-    throw error;
-  }
-  return () => lock.close();
 }
 
 const schemaSql = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");

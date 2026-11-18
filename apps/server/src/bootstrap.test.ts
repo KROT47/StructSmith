@@ -141,7 +141,7 @@ test("the default workspace directory is data/workspaces", () => {
   );
 });
 
-test("a fresh start creates an empty model even beside a previous database file", () => {
+test("a fresh start leaves the export directory empty while the server holds its lock", () => {
   const { directory, config } = setup();
   const dbPath = join(directory, "architecture.db");
   writeFileSync(dbPath, "leave this file intact");
@@ -149,8 +149,7 @@ test("a fresh start creates an empty model even beside a previous database file"
   try {
     expect(context.services.workspaces.list()).toEqual([]);
     expect(readFileSync(dbPath, "utf8")).toBe("leave this file intact");
-    expect(readdirSync(config.workspaceFilesDir)).toEqual([".structsmith"]);
-    expect(readdirSync(join(config.workspaceFilesDir, ".structsmith"))).toContain("lock.sqlite");
+    expect(readdirSync(config.workspaceFilesDir)).toEqual([]);
   } finally {
     context.database.close();
   }

@@ -14,7 +14,6 @@ import {
 import { basename, dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { type WorkspaceDocument, WorkspaceDocumentSchema } from "@structsmith/contracts";
-import { WORKSPACE_METADATA_DIR } from "@structsmith/database";
 
 interface WorkspaceFile {
   path: string;
@@ -42,7 +41,8 @@ export function readWorkspaceFiles(directory: string): WorkspaceFile[] {
   return entries
     .sort((left, right) => left.name.localeCompare(right.name))
     .flatMap((entry) => {
-      if (entry.isDirectory() && entry.name === WORKSPACE_METADATA_DIR) return [];
+      // Older versions put lock files in this directory.
+      if (entry.isDirectory() && entry.name === ".structsmith") return [];
       const path = join(directory, entry.name);
       if (entry.isDirectory()) return readWorkspaceFiles(path);
       const staged = stagedName.test(entry.name);

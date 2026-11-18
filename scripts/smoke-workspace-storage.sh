@@ -5,19 +5,23 @@ image=${1:?Pass the StructSmith image tag}
 prefix="structsmith-workspaces-$(date +%s)-$$"
 server="$prefix-server"
 contender="$prefix-contender"
-workspaces="$prefix-json"
+workspaces=$(mktemp -d "$(cd /tmp && pwd -P)/structsmith-workspaces.XXXXXXXX")
 data="$prefix-data"
 other_data="$prefix-other-data"
 
 cleanup() {
   docker rm -f "$server" "$contender" >/dev/null 2>&1 || true
-  docker volume rm "$workspaces" "$data" "$other_data" >/dev/null 2>&1 || true
+  docker volume rm "$data" "$other_data" >/dev/null 2>&1 || true
+  rm -rf -- "$workspaces"
 }
 trap cleanup EXIT
 
+# The container runs as a different UID on some hosts.
+chmod a+rwx "$workspaces"
+
 run_server() {
-  docker run -d --name "$1" -e WORKSPACE_FILES_DIR=/workspaces \
-    -v "$workspaces:/workspaces" -v "$2:/data" "$image"
+  docker run -d --name "$1" -e WORKSPACE_FILES_DIR=/workspaces -e AGENT_CHAT_ENABLED=false \
+    --mount "type=bind,source=$workspaces,target=/workspaces" -v "$2:/data" "$image"
 }
 
 request() {
@@ -44,20 +48,30 @@ wait_for_health() {
 
 check_workspace() {
   request /api/workspaces/storage-smoke | grep -F '"name":"Storage smoke"'
+  check_workspace_files storage-smoke.json
+}
+
+check_workspace_files() {
+  if [ "$(ls -1A "$workspaces")" != "$1" ]; then
+    echo "Unexpected contents in the host workspace directory (expected: ${1:-empty})" >&2
+    ls -la "$workspaces" >&2
+    return 1
+  fi
 }
 
 run_server "$server" "$data"
 wait_for_health
 request /api/workspaces | grep -Fx '{"workspaces":[]}'
+check_workspace_files ''
 request /api/workspaces '{"id":"storage-smoke","name":"Storage smoke"}'
 for ((attempt=0; attempt<30; attempt++)); do
-  if docker exec "$server" test -f /workspaces/storage-smoke.json; then
+  if [ -s "$workspaces/storage-smoke.json" ]; then
     break
   fi
   sleep 1
 done
-docker exec "$server" test -s /workspaces/storage-smoke.json
-docker exec "$server" sh -ec 'test -f /workspaces/.structsmith/lock.sqlite && test ! -e /workspaces/.structsmith-lock.sqlite'
+test -s "$workspaces/storage-smoke.json"
+check_workspace_files storage-smoke.json
 
 docker stop "$server"
 test "$(docker wait "$server")" = 0

@@ -149,7 +149,8 @@ bun run dev
 
 `bun run dev` starts the Bun/Express API on `:3000` and the Vite dev server on
 <http://localhost:5173>, which proxies `/api` and `/mcp` to the backend. The API
-loads workspace JSON into an in-memory SQLite database.
+loads workspace JSON into an in-memory SQLite database. Native startup uses
+macOS or Linux with glibc.
 
 The static project website lives in `apps/site`. Run it separately on
 <http://localhost:4174> with:
@@ -469,23 +470,26 @@ snapshots start empty. An empty directory gives an empty model. Invalid JSON,
 conflicting copies or broken references stop startup and report the source file.
 
 Files live in `data/workspaces/` locally and `/data/workspaces/` in Docker.
-Use `WORKSPACE_FILES_DIR` to select another directory. To use a separate Docker
-volume, mount it at `/workspaces` and set `WORKSPACE_FILES_DIR=/workspaces`. The
-server needs write access to that directory. Keep different instances on disjoint
-directories. Instances sharing a directory can use the owner's HTTP MCP endpoint.
+Use `WORKSPACE_FILES_DIR` to select another directory. In Docker Compose, bind
+mount `./data:/workspaces` and set `WORKSPACE_FILES_DIR=/workspaces` to save
+exports to the host's `./data`. A named volume mounted at `/workspaces` works
+with the same setting. The server needs write access to the mounted directory.
+StructSmith locks the directory itself, so it creates no lock files or service
+folders there. Use disjoint directories for independent instances. Containers
+on the same Docker host that share the directory can use the owner's HTTP MCP
+endpoint.
 
 Auto-saves and JSON downloads use `<workspaceId>.json`, so renaming the workspace
 keeps its path. Workspace IDs use lowercase ASCII letters, digits, hyphens and
 underscores. JSON added under another name is renamed in place after all inputs
 validate. Two different documents with the same ID stop startup and report both
-paths. The shared workspace volume holds the SQLite lock under
-`.structsmith/lock.sqlite`. Ignore `.structsmith/` and `.structsmith-rename-*.tmp`
-in Git. Keep the lock file in place while the server is running and retain
-interrupted rename files for the next startup.
+paths. Ignore `.structsmith-rename-*.tmp` in Git and retain interrupted rename
+files for the next startup.
 
-When updating from a build that stored the lock beside the JSON files, stop
-all instances sharing that directory before switching. While they are stopped,
-you can remove the old `.structsmith-lock.sqlite` and its SQLite sidecar files.
+When updating from a build that created SQLite lock files, stop all instances
+sharing the workspace directory. Remove the old `.structsmith/lock.sqlite` or
+`.structsmith-lock.sqlite` and their SQLite sidecars if present. Remove the old
+`.structsmith/` folder if it is empty, then start the updated instance.
 
 Ordinary changes are saved after three seconds without further changes. The
 server writes each complete document atomically and flushes the queue on clean

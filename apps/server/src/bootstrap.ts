@@ -1,9 +1,4 @@
-import {
-  acquireWorkspaceLock,
-  createDatabase,
-  type DatabaseHandle,
-  DrizzleStore,
-} from "@structsmith/database";
+import { createDatabase, type DatabaseHandle, DrizzleStore } from "@structsmith/database";
 import { createServices, InMemoryEventBus, type Services } from "@structsmith/domain";
 import { AutoExportScheduler } from "./auto-export";
 import type { AppConfig } from "./config";
@@ -12,6 +7,7 @@ import {
   readWorkspaceFiles,
   uniqueWorkspaceFiles,
 } from "./workspace-files";
+import { acquireWorkspaceLock } from "./workspace-lock";
 
 export interface AppContext {
   config: AppConfig;
