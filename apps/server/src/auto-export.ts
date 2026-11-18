@@ -1,57 +1,51 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { AUTO_EXPORT_DELAY_MS } from "@structsmith/contracts";
-import { type DomainEvent, type Services, toMermaid } from "@structsmith/domain";
-import { readWorkspaceFiles, writeWorkspaceFile } from "./workspace-files";
-
-function snakeCase(value: string): string {
-  return value
-    .normalize("NFKC")
-    .replace(/(\p{Lu})(\p{Lu}\p{Ll})/gu, "$1_$2")
-    .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, "$1_$2")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-interface NamedTarget {
-  id: string;
-  name: string;
-}
-
-const baseName = (target: NamedTarget): string =>
-  snakeCase(target.name) || snakeCase(target.id) || "untitled";
-
-function exportName(target: NamedTarget): string {
-  const base = baseName(target);
-  let prefix = "";
-  let bytes = 0;
-  for (const character of base) {
-    bytes += Buffer.byteLength(character);
-    if (bytes > 200) break;
-    prefix += character;
-  }
-  return prefix.replace(/_+$/g, "");
-}
+import { lstatSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { AUTO_EXPORT_DELAY_MS, ERROR_CODES, type WorkspaceDocument } from "@structsmith/contracts";
+import { DomainError, type DomainEvent, type Services, toMermaid } from "@structsmith/domain";
+import { writeWorkspaceFile } from "./workspace-files";
 
 const markdownHeading = (name: string): string =>
   name.replace(/\s+/g, " ").replace(/[\\`*_{}[\]<>#]/g, "\\$&");
 
+function exportMermaid(jsonPath: string, workspaceId: string, document?: WorkspaceDocument): void {
+  const path = jsonPath.replace(/\.json$/, ".md");
+  const marker = `<!-- StructSmith Mermaid workspace: ${workspaceId} -->\n`;
+  try {
+    const existing = lstatSync(path, { throwIfNoEntry: false });
+    const owned = existing?.isFile() && readFileSync(path, "utf8").startsWith(marker);
+    if (document?.workspace.settings.automaticExport !== "mermaid") {
+      if (owned) rmSync(path, { force: true });
+      return;
+    }
+    if (existing && !owned) {
+      throw new Error("The destination already contains a user file.");
+    }
+    const markdown = [
+      `# ${markdownHeading(document.workspace.name)}`,
+      ...document.views.map(
+        (view) =>
+          `## ${markdownHeading(view.name)}\n\n\`\`\`mermaid\n${toMermaid(document, {
+            view,
+            direction: view.settings.autoLayoutDirection,
+          })}\n\`\`\``,
+      ),
+    ].join("\n\n");
+    writeWorkspaceFile(path, `${marker}${markdown}\n`);
+  } catch (error) {
+    console.error(`[workspace-files] Could not update Mermaid export "${path}":`, error);
+  }
+}
+
 export class AutoExportScheduler {
   private readonly pending = new Map<string, ReturnType<typeof setTimeout>>();
-  private readonly files = new Map<string, Set<string>>();
   private readonly unsubscribe: () => void;
   private closed = false;
 
   constructor(
     private readonly services: Services,
     private readonly directory: string,
+    private readonly files: Map<string, string>,
   ) {
-    for (const { path, document } of readWorkspaceFiles(directory)) {
-      const files = this.files.get(document.workspace.id) ?? new Set<string>();
-      files.add(path);
-      this.files.set(document.workspace.id, files);
-    }
     this.unsubscribe = services.context.bus.subscribe((event) => this.onChange(event));
   }
 
@@ -91,63 +85,45 @@ export class AutoExportScheduler {
     }
   }
 
-  private removeFiles(workspaceId: string, keep?: string): void {
-    for (const path of this.files.get(workspaceId) ?? []) {
-      if (path === keep || !existsSync(path)) continue;
-      // A rename may have reassigned this path to another workspace already.
-      const owner = JSON.parse(readFileSync(path, "utf8")) as { workspace: { id: string } };
-      if (owner.workspace.id !== workspaceId) continue;
-      rmSync(path, { force: true });
-      rmSync(path.replace(/\.json$/, ".md"), { force: true });
-    }
-    if (keep) this.files.set(workspaceId, new Set([keep]));
-    else this.files.delete(workspaceId);
-  }
-
   private export(workspaceId: string): void {
-    const workspaces = this.services.workspaces.list();
-    if (!workspaces.some((workspace) => workspace.id === workspaceId)) {
-      this.removeFiles(workspaceId);
+    const existing = this.files.get(workspaceId);
+    let document: WorkspaceDocument;
+    try {
+      document = this.services.model.getDocument(workspaceId);
+    } catch (error) {
+      if (!(error instanceof DomainError) || error.code !== ERROR_CODES.WORKSPACE_NOT_FOUND) {
+        throw error;
+      }
+      if (existing) {
+        rmSync(existing, { force: true });
+        exportMermaid(existing, workspaceId);
+        this.files.delete(workspaceId);
+      }
       return;
     }
-    const document = this.services.model.getDocument(workspaceId);
-    const workspaceName = exportName(document.workspace);
-    const jsonPath = join(this.directory, `${workspaceName}.json`);
-    const markdownPath = join(this.directory, `${workspaceName}.md`);
-    mkdirSync(this.directory, { recursive: true });
-    writeWorkspaceFile(jsonPath, `${JSON.stringify(document, null, 2)}\n`);
-    const files = this.files.get(workspaceId) ?? new Set<string>();
-    files.add(jsonPath);
-    this.files.set(workspaceId, files);
-    if (document.workspace.settings.automaticExport === "mermaid") {
-      const markdown = [
-        `# ${markdownHeading(document.workspace.name)}`,
-        ...document.views.map(
-          (view) =>
-            `## ${markdownHeading(view.name)}\n\n\`\`\`mermaid\n${toMermaid(document, {
-              view,
-              direction: view.settings.autoLayoutDirection,
-            })}\n\`\`\``,
-        ),
-      ].join("\n\n");
-      writeWorkspaceFile(markdownPath, `${markdown}\n`);
-    } else {
-      rmSync(markdownPath, { force: true });
-    }
-    this.removeFiles(workspaceId, jsonPath);
-  }
 
-  exportAll(): void {
-    for (const workspace of this.services.workspaces.list()) {
-      this.export(workspace.id);
-      this.cancel(workspace.id);
-    }
+    const jsonPath = existing ?? join(this.directory, `${workspaceId}.json`);
+    mkdirSync(dirname(jsonPath), { recursive: true });
+    writeWorkspaceFile(jsonPath, `${JSON.stringify(document, null, 2)}\n`);
+    this.files.set(workspaceId, jsonPath);
+    exportMermaid(jsonPath, workspaceId, document);
   }
 
   flush(): void {
+    const failures: Error[] = [];
     for (const workspaceId of this.pending.keys()) {
-      this.export(workspaceId);
-      this.cancel(workspaceId);
+      try {
+        this.export(workspaceId);
+        this.cancel(workspaceId);
+      } catch (error) {
+        failures.push(new Error(`Could not save workspace "${workspaceId}"`, { cause: error }));
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Could not save all workspace JSON in "${this.directory}".`,
+      );
     }
   }
 

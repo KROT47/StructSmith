@@ -17,6 +17,13 @@ import {
 } from "./enums";
 
 export const IdSchema = z.string().min(1).max(64);
+export const WorkspaceIdSchema = IdSchema.regex(
+  /^[a-z0-9_-]+$/,
+  "Use lowercase letters, digits, hyphens, or underscores for the workspace ID.",
+).refine(
+  (id) => !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(id),
+  "This workspace ID is reserved.",
+);
 export const TagsSchema = z.array(z.string().min(1).max(64)).max(64);
 export const PropertiesSchema = z.record(z.string(), z.string());
 
@@ -42,7 +49,7 @@ export const WorkspaceSettingsSchema = z.object({
 export type WorkspaceSettings = z.infer<typeof WorkspaceSettingsSchema>;
 
 export const WorkspaceSchema = z.object({
-  id: IdSchema,
+  id: WorkspaceIdSchema,
   name,
   description: z.string().nullable(),
   mode: WorkspaceModeSchema,
@@ -54,7 +61,7 @@ export const WorkspaceSchema = z.object({
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 
 export const CreateWorkspaceSchema = z.object({
-  id: IdSchema.optional(),
+  id: WorkspaceIdSchema.optional(),
   name,
   description: optionalText,
   mode: WorkspaceModeSchema.default("relaxed"),

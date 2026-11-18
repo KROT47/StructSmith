@@ -8,10 +8,8 @@ services:
       - structsmith-data:/data
     environment:
       PORT: 8080
-      DATABASE_PATH: /data/architecture.db
       AUTH_MODE: none
       MCP_READ_ONLY: "false"
-      SEED_EXAMPLE: "true"
     restart: unless-stopped
 
 volumes:

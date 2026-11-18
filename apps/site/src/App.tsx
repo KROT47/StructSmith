@@ -144,7 +144,7 @@ export function App({ baseUrl = "/" }: AppProps) {
               <strong>1</strong> container
             </span>
             <span>
-              <strong>1</strong> SQLite file
+              <strong>JSON</strong> workspace files
             </span>
             <span>
               <strong>0</strong> telemetry
@@ -265,8 +265,8 @@ export function App({ baseUrl = "/" }: AppProps) {
             </div>
             <h3>Local means local</h3>
             <p>
-              No account, cloud dependency or telemetry. One container and one SQLite file keep
-              ownership simple.
+              No account, cloud dependency or telemetry. Your workspaces are stored as local JSON
+              files.
             </p>
             <div className="local-proof" aria-hidden="true">
               <span>

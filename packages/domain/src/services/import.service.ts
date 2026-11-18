@@ -1,11 +1,15 @@
 import type { Workspace, WorkspaceDocument } from "@structsmith/contracts";
-import { ImportMermaidRequestSchema, WorkspaceDocumentSchema } from "@structsmith/contracts";
+import {
+  ImportMermaidRequestSchema,
+  WorkspaceDocumentSchema,
+  WorkspaceIdSchema,
+} from "@structsmith/contracts";
 import { assertWorkspaceNameAvailable, requireWorkspace, type ServiceContext } from "../context";
 import { badRequest, DomainError } from "../errors";
 import { createId, nowIso } from "../ids";
 import { parseMermaidToWorkspaceDocument } from "../mermaid-import";
 import { wouldCreateCycle } from "../rules";
-import { restoreDocument } from "./snapshot.service";
+import { insertDocumentContents, restoreDocument } from "./snapshot.service";
 
 function checkDocumentReferences(document: WorkspaceDocument): void {
   const elements = new Set(document.elements.map((element) => element.id));
@@ -103,7 +107,7 @@ export class ImportService {
       for (const document of documents) {
         try {
           repos.workspaces.insert(document.workspace);
-          restoreDocument(repos, document);
+          insertDocumentContents(repos, document);
         } catch (error) {
           throw restoreError(document, error);
         }
@@ -115,6 +119,8 @@ export class ImportService {
     document: WorkspaceDocument,
     options: { mode?: "new" | "overwrite"; name?: string } = {},
   ): Workspace {
+    WorkspaceIdSchema.parse(document.workspace.id);
+    checkDocumentReferences(document);
     const mode = options.mode ?? "new";
     const timestamp = nowIso();
 
@@ -233,7 +239,7 @@ export class ImportService {
         })),
       };
 
-      restoreDocument(repos, remapped);
+      insertDocumentContents(repos, remapped);
       repos.activity.insert({
         workspaceId: newId,
         source: "import",

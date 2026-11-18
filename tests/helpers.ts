@@ -1,8 +1,5 @@
-import { fileURLToPath } from "node:url";
-import { createDatabase, DrizzleStore, runMigrations } from "@structsmith/database";
+import { createDatabase, DrizzleStore } from "@structsmith/database";
 import { createServices, InMemoryEventBus, type Services } from "@structsmith/domain";
-
-const migrationsDir = fileURLToPath(new URL("../migrations", import.meta.url));
 
 export interface TestContext {
   services: Services;
@@ -10,10 +7,9 @@ export interface TestContext {
   close: () => void;
 }
 
-/** Every test gets its own in-memory database with the real migrations applied. */
+/** Every test gets its own in-memory database with the production schema. */
 export function createTestContext(): TestContext {
-  const database = createDatabase(":memory:");
-  runMigrations(database.sqlite, migrationsDir);
+  const database = createDatabase();
 
   const bus = new InMemoryEventBus();
   const services = createServices(new DrizzleStore(database.db), bus);

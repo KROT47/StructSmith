@@ -5,7 +5,7 @@ import type {
   Workspace,
   WorkspaceDocument,
 } from "@structsmith/contracts";
-import { WorkspaceSettingsSchema } from "@structsmith/contracts";
+import { WorkspaceIdSchema, WorkspaceSettingsSchema } from "@structsmith/contracts";
 import {
   assertWorkspaceNameAvailable,
   captureDocument,
@@ -30,7 +30,7 @@ export class WorkspaceService {
   create(input: CreateWorkspaceInput): Workspace {
     const timestamp = nowIso();
     const workspace: Workspace = {
-      id: input.id ?? createId(input.name),
+      id: WorkspaceIdSchema.parse(input.id ?? createId(input.name)),
       name: input.name,
       description: input.description ?? null,
       mode: input.mode ?? "relaxed",

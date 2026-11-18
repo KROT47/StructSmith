@@ -1,5 +1,6 @@
-import { sql } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import {
+  type AnySQLiteColumn,
   index,
   integer,
   primaryKey,
@@ -27,7 +28,9 @@ export const elements = sqliteTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
-    parentId: text("parent_id"),
+    parentId: text("parent_id").references((): AnySQLiteColumn => elements.id, {
+      onDelete: "cascade",
+    }),
     kind: text("kind").notNull(),
     role: text("role"),
     name: text("name").notNull(),
@@ -80,8 +83,12 @@ export const boundaries = sqliteTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
-    viewId: text("view_id").notNull(),
-    parentBoundaryId: text("parent_boundary_id"),
+    viewId: text("view_id")
+      .notNull()
+      .references(() => views.id, { onDelete: "cascade" }),
+    parentBoundaryId: text("parent_boundary_id").references((): AnySQLiteColumn => boundaries.id, {
+      onDelete: "set null",
+    }),
     kind: text("kind").notNull(),
     layer: text("layer").notNull().default("deployment"),
     classification: text("classification"),
@@ -214,7 +221,7 @@ export const snapshots = sqliteTable(
     snapshotJson: text("snapshot_json").notNull(),
     createdAt: text("created_at").notNull(),
   },
-  (table) => [index("idx_snapshots_workspace").on(table.workspaceId, table.createdAt)],
+  (table) => [index("idx_snapshots_workspace").on(table.workspaceId, desc(table.createdAt))],
 );
 
 export const activity = sqliteTable(
@@ -228,10 +235,5 @@ export const activity = sqliteTable(
     message: text("message").notNull(),
     createdAt: text("created_at").notNull(),
   },
-  (table) => [index("idx_activity_workspace").on(table.workspaceId, table.id)],
+  (table) => [index("idx_activity_workspace").on(table.workspaceId, desc(table.id))],
 );
-
-export const schemaMigrations = sqliteTable("schema_migrations", {
-  name: text("name").primaryKey(),
-  appliedAt: text("applied_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});

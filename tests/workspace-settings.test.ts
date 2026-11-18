@@ -1,18 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   CreateWorkspaceSchema,
   UpdateWorkspaceSchema,
   WorkspaceDocumentSchema,
 } from "@structsmith/contracts";
-import { createDatabase, DrizzleStore, runMigrations } from "@structsmith/database";
+import { createDatabase, DrizzleStore } from "@structsmith/database";
 import { createServices, type DomainEvent, InMemoryEventBus } from "@structsmith/domain";
 import { createTestContext } from "./helpers";
-
-const migrationsDir = fileURLToPath(new URL("../migrations", import.meta.url));
 
 describe("workspace settings", () => {
   test("new workspaces disable automatic export by default", () => {
@@ -25,41 +19,6 @@ describe("workspace settings", () => {
       });
     } finally {
       close();
-    }
-  });
-
-  test("automatic export settings survive reopening SQLite", () => {
-    const directory = mkdtempSync(join(tmpdir(), "structsmith-workspace-settings-"));
-    const databasePath = join(directory, "test.db");
-    try {
-      const database = createDatabase(databasePath);
-      let workspaceId: string;
-      try {
-        runMigrations(database.sqlite, migrationsDir);
-        const services = createServices(new DrizzleStore(database.db), new InMemoryEventBus());
-        workspaceId = services.workspaces.create({
-          name: "Persistent",
-          settings: { automaticExport: "disabled" },
-        }).id;
-        expect(services.workspaces.get(workspaceId).settings).toEqual({
-          automaticExport: "disabled",
-        });
-        services.workspaces.update(workspaceId, { settings: { automaticExport: "mermaid" } });
-      } finally {
-        database.close();
-      }
-      const reopened = createDatabase(databasePath);
-      try {
-        expect(runMigrations(reopened.sqlite, migrationsDir).applied).toEqual([]);
-        const services = createServices(new DrizzleStore(reopened.db), new InMemoryEventBus());
-        expect(services.workspaces.get(workspaceId).settings).toEqual({
-          automaticExport: "mermaid",
-        });
-      } finally {
-        reopened.close();
-      }
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
     }
   });
 
@@ -228,9 +187,8 @@ describe("workspace settings", () => {
   });
 
   test("legacy JSON export settings normalize to disabled in documents and SQLite", () => {
-    const database = createDatabase(":memory:");
+    const database = createDatabase();
     try {
-      runMigrations(database.sqlite, migrationsDir);
       const services = createServices(new DrizzleStore(database.db), new InMemoryEventBus());
       const workspace = services.workspaces.create({ name: "Legacy JSON export" });
       const legacyDocument = {
@@ -251,29 +209,18 @@ describe("workspace settings", () => {
     }
   });
 
-  test("migration defaults existing workspace rows to disabled", () => {
-    const directory = mkdtempSync(join(tmpdir(), "structsmith-legacy-settings-"));
-    const legacyMigrations = join(directory, "migrations");
-    mkdirSync(legacyMigrations);
-    for (const file of readdirSync(migrationsDir).filter((file) => file < "0005")) {
-      copyFileSync(join(migrationsDir, file), join(legacyMigrations, file));
-    }
-    const database = createDatabase(":memory:");
+  test("generated schema defaults workspace rows to Mermaid export disabled", () => {
+    const database = createDatabase();
     try {
-      runMigrations(database.sqlite, legacyMigrations);
       database.sqlite
         .query(
           "INSERT INTO workspaces (id, name, mode, revision, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
         .run("existing", "Existing", "relaxed", 1, "2026-01-01", "2026-01-01");
-      expect(runMigrations(database.sqlite, migrationsDir).applied).toEqual([
-        "0005_workspace_settings.sql",
-      ]);
       const services = createServices(new DrizzleStore(database.db), new InMemoryEventBus());
       expect(services.workspaces.get("existing").settings).toEqual({ automaticExport: "disabled" });
     } finally {
       database.close();
-      rmSync(directory, { recursive: true, force: true });
     }
   });
 

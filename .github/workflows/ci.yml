@@ -35,6 +35,9 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Check the generated SQLite schema
+        run: bun run db:schema:check
+
       - name: Tests
         run: bun run test
 
@@ -72,19 +75,7 @@ jobs:
           cache-to: type=gha,mode=min,scope=ci,ignore-error=true,timeout=2m
 
       - name: Smoke test the image
-        run: |
-          docker run -d --name structsmith-ci -p 8080:8080 structsmith:ci
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8080/health > /dev/null; then
-              echo "health ok"; break
-            fi
-            if [ "$i" = "30" ]; then
-              echo "server did not become healthy"; docker logs structsmith-ci; exit 1
-            fi
-            sleep 2
-          done
-          curl -fsS http://localhost:8080/api/workspaces > /dev/null
-          docker rm -f structsmith-ci
+        run: bash scripts/smoke-workspace-storage.sh structsmith:ci
 
       - uses: oven-sh/setup-bun@v2
         with:

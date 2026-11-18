@@ -1,6 +1,64 @@
 import { expect, test } from "bun:test";
-import { WorkspaceDocumentSchema } from "@structsmith/contracts";
+import { CreateWorkspaceSchema, WorkspaceDocumentSchema } from "@structsmith/contracts";
 import { createTestContext, createWorkspace } from "./helpers";
+
+test("only portable workspace IDs can be created or imported", () => {
+  const { services, close } = createTestContext();
+  try {
+    const workspace = services.workspaces.create({ id: "client_portal-01", name: "Client Portal" });
+    const original = services.model.getDocument(workspace.id);
+    expect(CreateWorkspaceSchema.safeParse({ id: "a".repeat(64), name: "Valid" }).success).toBe(
+      true,
+    );
+    for (const id of ["", "a".repeat(65), "Upper", "a/b", "a\\b", "a\n", "..", "con", "lpt1"]) {
+      expect(CreateWorkspaceSchema.safeParse({ id, name: "Invalid" }).success).toBe(false);
+      expect(() => services.workspaces.create({ id, name: "Invalid" })).toThrow();
+      const invalid = { ...original, workspace: { ...original.workspace, id } };
+      expect(WorkspaceDocumentSchema.safeParse(invalid).success).toBe(false);
+      expect(() => services.imports.importDocument(invalid, { name: "Invalid" })).toThrow();
+    }
+    expect(services.workspaces.list()).toEqual([workspace]);
+  } finally {
+    close();
+  }
+});
+
+test("interactive imports reject a relationship to an element outside the document", () => {
+  const { services, close } = createTestContext();
+  try {
+    const workspace = createWorkspace(services, "Original");
+    const other = createWorkspace(services, "Other");
+    const from = services.elements.create(workspace.id, {
+      kind: "person",
+      name: "Customer",
+    }).result;
+    const to = services.elements.create(workspace.id, { kind: "container", name: "API" }).result;
+    const foreign = services.elements.create(other.id, {
+      kind: "container",
+      name: "Database",
+    }).result;
+    services.relationships.create(workspace.id, {
+      sourceElementId: from.id,
+      targetElementId: to.id,
+    });
+    const original = services.model.getDocument(workspace.id);
+    const invalid = structuredClone(original);
+    const relationship = invalid.relationships[0];
+    if (!relationship) throw new Error("Missing relationship");
+    relationship.targetElementId = foreign.id;
+
+    expect(() => services.imports.importDocument(invalid, { mode: "overwrite" })).toThrow(
+      "Invalid references",
+    );
+    expect(() => services.imports.importDocument(invalid, { name: "Copy" })).toThrow(
+      "Invalid references",
+    );
+    expect(services.model.getDocument(workspace.id)).toEqual(original);
+    expect(services.workspaces.list()).toHaveLength(2);
+  } finally {
+    close();
+  }
+});
 
 test("startup restore preserves the complete document and clears prior workspaces and history", () => {
   const source = createTestContext();

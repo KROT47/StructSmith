@@ -16,7 +16,6 @@ RUN bun install --frozen-lockfile
 
 COPY packages ./packages
 COPY apps ./apps
-COPY migrations ./migrations
 COPY scripts ./scripts
 
 # Release builds stamp the shared product version without committing to main.
@@ -32,12 +31,10 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=8080 \
     HOST=0.0.0.0 \
-    DATABASE_PATH=/data/architecture.db \
-    MIGRATIONS_DIR=/app/migrations \
+    WORKSPACE_FILES_DIR=/data/workspaces \
     AUTH_MODE=none \
     MCP_READ_ONLY=false \
-    AGENT_CHAT_DIR=/data/agent-chat \
-    SEED_EXAMPLE=true
+    AGENT_CHAT_DIR=/data/agent-chat
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
@@ -45,13 +42,10 @@ COPY LICENSE ./LICENSE
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/scripts ./scripts
-COPY --from=build /app/migrations ./migrations
 COPY --from=build /app/apps/server ./apps/server
 COPY --from=build /app/apps/web/package.json ./apps/web/package.json
 COPY --from=build /app/apps/web/dist ./apps/web/dist
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data && chown -R bun:bun /data /app
+RUN mkdir -p /data/workspaces /workspaces && chown -R bun:bun /data /workspaces /app
 
 USER bun
 VOLUME ["/data"]
@@ -60,5 +54,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD bun -e "fetch('http://127.0.0.1:'+(process.env.PORT??8080)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["bun", "apps/server/src/index.ts"]

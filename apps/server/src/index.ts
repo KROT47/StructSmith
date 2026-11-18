@@ -30,10 +30,13 @@ const server = app.listen(config.port, config.host, (error) => {
     `  MCP       ${base}/mcp  (streamable http${config.mcpReadOnly ? ", read-only" : ""})`,
   );
   console.log(`  Health    ${base}/health`);
-  console.log(`  Database  ${config.databasePath}\n`);
+  console.log(`  Workspaces  ${config.workspaceFilesDir}\n`);
 });
 
+let shuttingDown = false;
 const shutdown = async (signal: string): Promise<void> => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`\n[server] ${signal} received, shutting down.`);
   await mcp.closeAll().catch(() => undefined);
   await agents?.close().catch(() => undefined);

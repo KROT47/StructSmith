@@ -1,10 +1,19 @@
 import { afterEach, beforeEach, expect, jest, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AUTO_EXPORT_DELAY_MS, WorkspaceDocumentSchema } from "@structsmith/contracts";
 import { createTestContext } from "../../../tests/helpers";
 import { AutoExportScheduler } from "./auto-export";
+import { normalizeWorkspaceFiles, readWorkspaceFiles } from "./workspace-files";
 
 function exportedFile(output: string, extension = "json"): string {
   const filename = readdirSync(output).find((file) => file.endsWith(`.${extension}`));
@@ -23,13 +32,13 @@ function setup(name = "Example Workspace") {
   const directory = mkdtempSync(join(tmpdir(), "structsmith-auto-export-"));
   const context = createTestContext();
   const output = join(directory, "auto-exports");
-  const scheduler = new AutoExportScheduler(context.services, output);
+  const scheduler = new AutoExportScheduler(context.services, output, new Map());
   cleanups.push(() => {
     scheduler.close();
     context.close();
     rmSync(directory, { recursive: true, force: true });
   });
-  const workspace = context.services.workspaces.create({ name });
+  const workspace = context.services.workspaces.create({ id: "example-workspace", name });
   const read = () =>
     WorkspaceDocumentSchema.parse(JSON.parse(readFileSync(exportedFile(output), "utf8")));
   return { ...context, directory, output, scheduler, workspace, read };
@@ -42,7 +51,7 @@ test("JSON is mandatory even with Mermaid disabled and no views", () => {
   expect(existsSync(output)).toBe(false);
   jest.advanceTimersByTime(1);
   expect(read()).toEqual(services.model.getDocument(workspace.id));
-  expect(readdirSync(output)).toEqual(["example_workspace.json"]);
+  expect(readdirSync(output)).toEqual(["example-workspace.json"]);
 });
 
 test("JSON debounces model, record, metadata and layout changes together", () => {
@@ -96,7 +105,7 @@ test("Mermaid setting saves export JSON and Markdown immediately and repeatedly"
 test("disabling Mermaid removes Markdown but continues saving JSON", () => {
   const { services, workspace, output, read } = setup();
   services.workspaces.update(workspace.id, { settings: { automaticExport: "mermaid" } });
-  expect(readFileSync(exportedFile(output, "md"), "utf8")).toBe("# Example Workspace\n");
+  expect(readFileSync(exportedFile(output, "md"), "utf8")).toContain("# Example Workspace\n");
   services.workspaces.update(workspace.id, { settings: { automaticExport: "disabled" } });
   expect(readdirSync(output).some((file) => file.endsWith(".md"))).toBe(false);
   services.elements.create(workspace.id, { name: "Still persisted", kind: "person" });
@@ -104,29 +113,30 @@ test("disabling Mermaid removes Markdown but continues saving JSON", () => {
   expect(read().elements[0]?.name).toBe("Still persisted");
 });
 
-test("renaming and deleting workspaces removes old files so they cannot return on startup", () => {
+test("renaming retains file paths and deleting removes both owned files", () => {
   const { services, workspace, output } = setup();
   services.workspaces.update(workspace.id, { settings: { automaticExport: "mermaid" } });
   services.workspaces.update(workspace.id, { name: "Renamed" });
   jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(readdirSync(output)).toHaveLength(2);
-  expect(readdirSync(output).sort()).toEqual(["renamed.json", "renamed.md"]);
+  expect(readdirSync(output).sort()).toEqual(["example-workspace.json", "example-workspace.md"]);
+  expect(readFileSync(join(output, "example-workspace.json"), "utf8")).toContain(
+    '"name": "Renamed"',
+  );
   services.elements.create(workspace.id, { name: "Pending", kind: "person" });
   services.workspaces.delete(workspace.id);
   jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(readdirSync(output)).toEqual([]);
 });
 
-test("long Unicode names have bounded filenames without an ID suffix", () => {
+test("long Unicode names use the workspace ID in filenames", () => {
   const { services, workspace, output } = setup("Shared Workspace");
   const second = services.workspaces.create({ name: "Other Workspace" });
   const long = services.workspaces.create({ name: "ﬃ".repeat(100) });
   jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   const files = readdirSync(output);
   expect(files).toHaveLength(3);
-  expect(files.every((file) => Buffer.byteLength(file) <= 205 && file.endsWith(".json"))).toBe(
-    true,
-  );
+  expect(files.sort()).toEqual([workspace.id, second.id, long.id].map((id) => `${id}.json`).sort());
   expect(
     new Set(
       files.map(
@@ -171,10 +181,10 @@ test("MCP batches and imports always produce JSON", () => {
     "mcp",
   );
   const document = services.model.getDocument(workspace.id);
-  services.imports.importDocument(document, { name: "Imported Workspace" });
+  const imported = services.imports.importDocument(document, { name: "Imported Workspace" });
   jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
   expect(read().elements[0]?.name).toBe("Via MCP");
-  expect(readdirSync(output).some((file) => file === "imported_workspace.json")).toBe(true);
+  expect(readdirSync(output)).toContain(`${imported.id}.json`);
 });
 
 test("close flushes the latest pending JSON before the database closes", () => {
@@ -226,24 +236,49 @@ test("swapping names cannot overwrite or delete another workspace's JSON", () =>
   );
 });
 
-test("a new export replaces legacy filenames with names without postfixes", () => {
+test("workspace names that used to collide save independent files named by ID", () => {
+  const { services, output } = setup("A B");
+  services.workspaces.create({ id: "other-id", name: "A-B" });
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
+  expect(readFileSync(join(output, "other-id.json"), "utf8")).toContain('"name": "A-B"');
+  expect(readdirSync(output)).toHaveLength(2);
+});
+
+test("closing saves the other pending workspaces even if one path is blocked", () => {
+  const { services, workspace, output, scheduler } = setup();
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
+  const blocked = join(output, `${workspace.id}.json`);
+  rmSync(blocked, { force: true });
+  mkdirSync(blocked);
+  services.elements.create(workspace.id, { name: "Blocked edit", kind: "person" });
+  services.workspaces.create({ id: "available", name: "Available" });
+  expect(() => scheduler.close()).toThrow(AggregateError);
+  expect(readFileSync(join(output, "available.json"), "utf8")).toContain('"name": "Available"');
+});
+
+test("edits preserve the normalized path in the source folder", () => {
   const directory = mkdtempSync(join(tmpdir(), "structsmith-export-name-"));
   const context = createTestContext();
   try {
     const workspace = context.services.workspaces.create({
+      id: "client-portal",
       name: "Client Portal",
       settings: { automaticExport: "mermaid" },
     });
     const document = context.services.model.getDocument(workspace.id);
-    const oldFile = join(directory, "client_portal--0123456789ab.json");
+    const nested = join(directory, "team");
+    mkdirSync(nested);
+    const oldFile = join(nested, "Client-Portal.JSON");
     writeFileSync(oldFile, JSON.stringify(document));
-    writeFileSync(oldFile.replace(/\.json$/, ".md"), "Old export");
-    const scheduler = new AutoExportScheduler(context.services, directory);
+    const paths = normalizeWorkspaceFiles(readWorkspaceFiles(directory));
+    const scheduler = new AutoExportScheduler(context.services, directory, paths);
     try {
-      scheduler.exportAll();
-      expect(readdirSync(directory).sort()).toEqual(["client_portal.json", "client_portal.md"]);
-      expect(JSON.parse(readFileSync(join(directory, "client_portal.json"), "utf8"))).toEqual(
-        document,
+      context.services.workspaces.update(workspace.id, { name: "Updated Portal" });
+      scheduler.flush();
+      expect(readdirSync(directory)).toEqual(["team"]);
+      expect(readdirSync(nested).sort()).toEqual(["client-portal.json", "client-portal.md"]);
+      expect(readFileSync(join(nested, "client-portal.json"), "utf8")).toContain(
+        '"name": "Updated Portal"',
       );
     } finally {
       scheduler.close();
@@ -251,5 +286,26 @@ test("a new export replaces legacy filenames with names without postfixes", () =
   } finally {
     context.close();
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("optional Mermaid never overwrites or deletes an unrelated Markdown file", () => {
+  const { services, workspace, output } = setup();
+  jest.advanceTimersByTime(AUTO_EXPORT_DELAY_MS);
+  const markdown = join(output, "example-workspace.md");
+  writeFileSync(markdown, "User-owned notes");
+  const warning = jest.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    services.workspaces.update(workspace.id, { settings: { automaticExport: "mermaid" } });
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining(markdown), expect.any(Error));
+    expect(readFileSync(join(output, "example-workspace.json"), "utf8")).toContain(
+      '"automaticExport": "mermaid"',
+    );
+    services.workspaces.update(workspace.id, { settings: { automaticExport: "disabled" } });
+    services.workspaces.delete(workspace.id);
+    expect(readdirSync(output)).toEqual(["example-workspace.md"]);
+    expect(readFileSync(markdown, "utf8")).toBe("User-owned notes");
+  } finally {
+    warning.mockRestore();
   }
 });

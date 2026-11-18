@@ -1,6 +1,6 @@
-import { Database } from "bun:sqlite";
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { Database, SQLiteError } from "bun:sqlite";
+import { mkdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { type BunSQLiteDatabase, drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema";
 
@@ -12,20 +12,34 @@ export interface DatabaseHandle {
   close(): void;
 }
 
-/**
- * SQLite is the only database in the MVP (spec §15). Foreign keys and WAL are
- * mandatory: the model relies on cascading deletes.
- */
-export function createDatabase(path: string): DatabaseHandle {
-  if (path !== ":memory:") {
-    mkdirSync(dirname(path), { recursive: true });
+/** Coordinate writers sharing the workspace directory, including across containers. */
+export function acquireWorkspaceLock(directory: string): () => void {
+  mkdirSync(directory, { recursive: true });
+  // Keep the lock file in place so every writer opens the same inode.
+  const lock = new Database(join(directory, ".structsmith-lock.sqlite"));
+  try {
+    lock.exec("BEGIN IMMEDIATE");
+  } catch (error) {
+    lock.close();
+    if (error instanceof SQLiteError && error.code === "SQLITE_BUSY") {
+      throw new Error(`Workspace directory is already in use: ${directory}`, { cause: error });
+    }
+    throw error;
   }
+  return () => lock.close();
+}
 
-  const sqlite = new Database(path, { create: true });
-  sqlite.exec("PRAGMA journal_mode = WAL;");
-  sqlite.exec("PRAGMA foreign_keys = ON;");
-  sqlite.exec("PRAGMA busy_timeout = 5000;");
+const schemaSql = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");
 
-  const db = drizzle(sqlite, { schema });
-  return { db, sqlite, close: () => sqlite.close() };
+export function createDatabase(): DatabaseHandle {
+  const sqlite = new Database(":memory:");
+  try {
+    sqlite.exec("PRAGMA foreign_keys = ON;");
+    sqlite.exec(schemaSql);
+    const db = drizzle(sqlite, { schema });
+    return { db, sqlite, close: () => sqlite.close() };
+  } catch (error) {
+    sqlite.close();
+    throw error;
+  }
 }

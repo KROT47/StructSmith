@@ -79,7 +79,7 @@ export function ExportMenu({
             api
               .getDocument(workspaceId)
               .then((document) => {
-                downloadJson(document, `${slug(workspaceName)}.json`);
+                downloadJson(document, `${document.workspace.id}.json`);
                 toast.success(t("exportMenu.done"));
               })
               .catch(onError)

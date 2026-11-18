@@ -33,8 +33,8 @@ Before exposing StructSmith beyond your own machine:
 
 ## Data
 
-Everything lives in one SQLite file (`DATABASE_PATH`, `/data/architecture.db` in
-Docker). There is no telemetry, no outbound network traffic and no cloud
-dependency. Snapshots keep previous versions of a workspace in the same file, so
-treat a backup of that file as a backup of everything — including anything
-sensitive you wrote into element descriptions or presales records.
+Workspace JSON lives in `WORKSPACE_FILES_DIR` (`/data/workspaces` in Docker).
+Back up that directory after stopping the server so pending edits flush. Treat
+the JSON as sensitive if it contains private architecture or presales details.
+Back up `AGENT_CHAT_DIR` separately if you use built-in chat. Snapshots and
+activity are session data held in memory.

@@ -5,6 +5,7 @@ import {
   LayoutEntrySchema,
   ViewRelationshipPatchSchema,
   WorkspaceDocumentSchema,
+  WorkspaceIdSchema,
 } from "./model";
 
 /** Canonical error envelope returned by every failing REST call. */
@@ -73,7 +74,7 @@ export const ImportMermaidRequestSchema = z.object({
   /** Explicit name for the target workspace. */
   name: z.string().trim().min(1).max(200).optional(),
   /** Required when mode=overwrite: target workspace id. */
-  workspaceId: IdSchema.optional(),
+  workspaceId: WorkspaceIdSchema.optional(),
 });
 export type ImportWorkspaceRequest = z.input<typeof ImportWorkspaceRequestSchema>;
 export type ImportMermaidRequest = z.input<typeof ImportMermaidRequestSchema>;

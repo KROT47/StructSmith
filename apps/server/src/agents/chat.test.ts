@@ -17,16 +17,14 @@ import { fakeCodex } from "./test-cli";
 
 test("a real child CLI uses the temporary scoped HTTP MCP bridge in token mode", async () => {
   const directory = mkdtempSync(join(tmpdir(), "structsmith-chat-bridge-"));
-  const ctx = createAppContext({
-    ...loadConfig({
-      DATABASE_PATH: ":memory:",
+  const ctx = createAppContext(
+    loadConfig({
+      WORKSPACE_FILES_DIR: join(directory, "workspaces"),
       AGENT_CHAT_DIR: directory,
-      SEED_EXAMPLE: "false",
       AUTH_MODE: "token",
       APP_TOKEN: "test-app-token",
     }),
-    databasePath: ":memory:",
-  });
+  );
   const { app, agents, mcp } = createApp(ctx);
   if (!agents) throw new Error("Chat disabled");
   const project = createWorkspace(ctx.services);

@@ -24,16 +24,14 @@ async function until(predicate: () => boolean) {
 
 test("authenticated SSE shows partial text/reasoning, reconnects, completes once and retains Stop output", async () => {
   const directory = mkdtempSync(join(tmpdir(), "structsmith-stream-"));
-  const ctx = createAppContext({
-    ...loadConfig({
-      DATABASE_PATH: ":memory:",
+  const ctx = createAppContext(
+    loadConfig({
+      WORKSPACE_FILES_DIR: join(directory, "workspaces"),
       AGENT_CHAT_DIR: directory,
-      SEED_EXAMPLE: "false",
       AUTH_MODE: "token",
       APP_TOKEN: "test-token",
     }),
-    databasePath: ":memory:",
-  });
+  );
   const { app, agents, mcp } = createApp(ctx);
   if (!agents) throw new Error("Chat disabled");
   const fake = join(directory, "fake-agent");

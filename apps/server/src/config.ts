@@ -18,14 +18,11 @@ const bool = (value: string | undefined, fallback: boolean): boolean => {
 export interface AppConfig {
   port: number;
   host: string;
-  databasePath: string;
-  workspaceFilesDir?: string;
-  migrationsDir: string;
+  workspaceFilesDir: string;
   webDistDir: string | null;
   authMode: "none" | "token";
   appToken: string | null;
   mcpReadOnly: boolean;
-  seedExample: boolean;
   version: string;
   productName: string;
   agentChatEnabled: boolean;
@@ -39,17 +36,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: Number(env.PORT ?? 3000),
     host: env.HOST ?? "0.0.0.0",
-    databasePath:
-      env.DATABASE_PATH === ":memory:"
-        ? ":memory:"
-        : resolvePath(env.DATABASE_PATH ?? join("data", "architecture.db")),
-    workspaceFilesDir: env.WORKSPACE_FILES_DIR ? resolvePath(env.WORKSPACE_FILES_DIR) : undefined,
-    migrationsDir: resolvePath(env.MIGRATIONS_DIR ?? "migrations"),
+    workspaceFilesDir: resolvePath(env.WORKSPACE_FILES_DIR || join("data", "workspaces")),
     webDistDir: existsSync(join(webDist, "index.html")) ? webDist : null,
     authMode,
     appToken: env.APP_TOKEN?.trim() ? env.APP_TOKEN.trim() : null,
     mcpReadOnly: bool(env.MCP_READ_ONLY, false),
-    seedExample: bool(env.SEED_EXAMPLE, true),
     version: env.APP_VERSION ?? PRODUCT.version,
     productName: env.APP_NAME ?? PRODUCT.name,
     agentChatEnabled: bool(env.AGENT_CHAT_ENABLED, true),

@@ -1,14 +1,17 @@
 import {
+  acquireWorkspaceLock,
   createDatabase,
   type DatabaseHandle,
   DrizzleStore,
-  runMigrations,
 } from "@structsmith/database";
 import { createServices, InMemoryEventBus, type Services } from "@structsmith/domain";
 import { AutoExportScheduler } from "./auto-export";
 import type { AppConfig } from "./config";
-import { seedExampleWorkspace } from "./seed";
-import { rebuildDatabase } from "./startup-rebuild";
+import {
+  normalizeWorkspaceFiles,
+  readWorkspaceFiles,
+  uniqueWorkspaceFiles,
+} from "./workspace-files";
 
 export interface AppContext {
   config: AppConfig;
@@ -18,39 +21,55 @@ export interface AppContext {
 }
 
 export function createAppContext(config: AppConfig): AppContext {
-  const restored = config.databasePath === ":memory:" ? null : rebuildDatabase(config);
-  const database = restored?.database ?? createDatabase(":memory:");
-  let autoExports: AutoExportScheduler | undefined;
+  const directory = config.workspaceFilesDir;
+  const release = acquireWorkspaceLock(directory);
+  let database: DatabaseHandle | undefined;
   try {
-    if (!restored) runMigrations(database.sqlite, config.migrationsDir);
+    const files = readWorkspaceFiles(directory);
+    const sources = uniqueWorkspaceFiles(files);
+    database = createDatabase();
     const bus = new InMemoryEventBus();
     const services = createServices(new DrizzleStore(database.db), bus);
 
-    // Restoration happens before export listeners, API clients and MCP can write.
-    if (config.seedExample && (!restored || restored.firstRun)) seedExampleWorkspace(services);
-    if (restored) {
-      autoExports = new AutoExportScheduler(services, restored.directory);
-      if (restored.firstRun) autoExports.exportAll();
+    try {
+      services.imports.restoreDocuments(sources.map(({ document }) => document));
+    } catch (error) {
+      const workspaceId =
+        error && typeof error === "object" && "workspaceId" in error
+          ? error.workspaceId
+          : undefined;
+      const source = sources.find(({ document }) => document.workspace.id === workspaceId);
+      const paths = source?.path ?? sources.map(({ path }) => path).join(", ");
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`Cannot restore workspace JSON [${paths}]: ${reason}`, { cause: error });
     }
+    const autoExports = new AutoExportScheduler(
+      services,
+      directory,
+      normalizeWorkspaceFiles(files),
+    );
     const closeDatabase = database.close;
     let closed = false;
     database.close = () => {
       if (closed) return;
       closed = true;
       try {
-        autoExports?.close();
+        autoExports.close();
       } finally {
         try {
           closeDatabase();
         } finally {
-          restored?.release();
+          release();
         }
       }
     };
     return { config, database, services, bus };
   } catch (error) {
-    database.close();
-    restored?.release();
+    try {
+      database?.close();
+    } finally {
+      release();
+    }
     throw error;
   }
 }

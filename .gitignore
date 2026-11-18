@@ -1,11 +1,10 @@
 node_modules/
 dist/
-# SQLite is a local cache; workspace JSON and Mermaid files can be committed.
+# Workspace JSON and Mermaid files can be committed.
 data/*
+!data/workspaces/
+.structsmith-lock.sqlite*
 *.db
-*.db.lock*
-*.db.json-source
-*.db.rebuild-*
 .*.tmp
 *.db-shm
 *.db-wal

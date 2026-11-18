@@ -47,17 +47,15 @@ async function streamUntil(response: Response, needle: string) {
 test("host chat proxies Docker REST/SSE and a native CLI edits through scoped MCP", async () => {
   const directory = mkdtempSync(join(tmpdir(), "structsmith-local-test-"));
   const token = "private-backend-token-for-tests";
-  const ctx = createAppContext({
-    ...loadConfig({
-      DATABASE_PATH: ":memory:",
-      SEED_EXAMPLE: "false",
+  const ctx = createAppContext(
+    loadConfig({
+      WORKSPACE_FILES_DIR: join(directory, "workspaces"),
       AUTH_MODE: "token",
       APP_TOKEN: token,
       AGENT_CHAT_ENABLED: "false",
       AGENT_CHAT_DIR: directory,
     }),
-    databasePath: ":memory:",
-  });
+  );
   const project = createWorkspace(ctx.services, "Docker project");
   const other = createWorkspace(ctx.services, "Another project");
   const docker = createApp(ctx);

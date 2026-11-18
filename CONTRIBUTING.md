@@ -11,7 +11,7 @@ bun run dev
 ```
 
 The API starts on `:3000`, the Vite dev server on <http://localhost:5173>, and the
-SQLite cache is rebuilt from workspace JSON at startup. No Docker, Postgres, Redis,
+in-memory SQLite database is populated from workspace JSON at startup. No Docker, Postgres, Redis,
 Java or Python needed. `bun run stop` frees both ports if a process is left behind.
 
 ## Before opening a pull request
@@ -21,9 +21,10 @@ bun run check      # Biome: lint, formatting and import order
 bun run typecheck  # tsc --noEmit across the whole monorepo
 bun run test       # domain and persistence tests
 bun run build      # production build of the UI
+bun run db:schema:check # verify generated SQLite schema
 ```
 
-CI runs these four, a standalone launcher build and a Docker image build.
+CI runs these checks, a standalone launcher build and a Docker image build.
 The Docker job also runs `scripts/smoke-local-helper.ts` against the compiled
 launcher and real container, using a fake host CLI without provider usage. `bun run check:fix` applies
 what can be fixed automatically.
@@ -70,16 +71,16 @@ packages/contracts/  Zod schemas and DTOs shared everywhere
 packages/domain/     Pure domain: rules, validation, operations, services
 packages/database/   Drizzle repositories implementing the domain ports
 packages/mcp/        MCP tools, resources, prompts, Streamable HTTP handler
-migrations/      Plain SQL, applied in order at startup
+examples/        JSON workspace examples for explicit import
 tests/           bun:test over the real domain and an in-memory database
 ```
 
 ## Database changes
 
-Migrations are plain SQL applied in filename order by `scripts/migrate.ts`. Add a
-new numbered file in `migrations/` and update `packages/database/src/schema.ts` to
-match. Never edit a migration that has already shipped — the migrator is
-forward-only. `bun run db:generate` can draft one from the schema with Drizzle Kit.
+Edit the Drizzle definitions in `packages/database/src/schema.ts` and run
+`bun run db:schema`. Commit the updated `packages/database/src/schema.sql` with
+the definitions. The server uses this SQL to initialize its in-memory database.
+CI checks it with `bun run db:schema:check`.
 
 ## Adding a language
 

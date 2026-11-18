@@ -15,9 +15,7 @@ for (const entrypoint of ["apps/server/src/index.ts", "apps/server/src/mcp-stdio
         cwd: process.cwd(),
         env: {
           ...process.env,
-          DATABASE_PATH: join(directory, "cache.db"),
           WORKSPACE_FILES_DIR: sources,
-          SEED_EXAMPLE: "false",
           PORT: "0",
         },
         stdout: "pipe",

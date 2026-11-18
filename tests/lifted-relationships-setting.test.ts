@@ -1,12 +1,9 @@
 import { expect, test } from "bun:test";
-import { fileURLToPath } from "node:url";
 import { WorkspaceDocumentSchema } from "@structsmith/contracts";
-import { createDatabase, DrizzleStore, runMigrations } from "@structsmith/database";
+import { createDatabase, DrizzleStore } from "@structsmith/database";
 import { createServices, InMemoryEventBus, toMermaid } from "@structsmith/domain";
 import { buildGraph } from "../apps/web/src/features/canvas/graph";
 import { createTestContext, createWorkspace } from "./helpers";
-
-const migrationsDir = fileURLToPath(new URL("../migrations", import.meta.url));
 
 test("component views hide lifted relationships until the view setting says otherwise", () => {
   const { services, close } = createTestContext();
@@ -109,8 +106,7 @@ test("component views hide lifted relationships until the view setting says othe
 });
 
 test("a component view saved before the setting existed hides lifted relationships", () => {
-  const database = createDatabase(":memory:");
-  runMigrations(database.sqlite, migrationsDir);
+  const database = createDatabase();
   const services = createServices(new DrizzleStore(database.db), new InMemoryEventBus());
   try {
     const workspace = createWorkspace(services);

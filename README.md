@@ -39,7 +39,7 @@ architecture workshops, documenting systems, designing integrations — and for 
 architecture together with an AI assistant.
 
 - MIT licensed, no account, no cloud, no telemetry — it works fully offline
-- One container, one SQLite file
+- One container, JSON workspace files
 - REST API, MCP and the UI all sit on the same domain layer
 
 ---
@@ -64,7 +64,9 @@ docker run -d --name structsmith \
 ```
 
 Then open <http://localhost:8090>. No repository clone or local build is needed.
-Your workspaces persist in the `structsmith-data` Docker volume.
+Your workspaces persist as JSON under `/data/workspaces` in the `structsmith-data` volume.
+Start with a blank model or load the [Client Portal example](examples/example-client-portal.json)
+through **Import workspace**.
 
 Choose the launcher below if you want the built-in chat to use CLIs installed on
 your computer. Plain `docker run` and Compose run the server inside the container,
@@ -145,10 +147,9 @@ bun install --frozen-lockfile
 bun run dev
 ```
 
-`bun run dev` starts both processes: the Bun/Express API on `:3000` and the Vite dev server
-on <http://localhost:5173>, which proxies `/api` and `/mcp` to the backend. The SQLite
-database is created and migrated automatically — no Docker, Postgres, Redis, Java or Python
-required for development.
+`bun run dev` starts the Bun/Express API on `:3000` and the Vite dev server on
+<http://localhost:5173>, which proxies `/api` and `/mcp` to the backend. The API
+loads workspace JSON into an in-memory SQLite database.
 
 The static project website lives in `apps/site`. Run it separately on
 <http://localhost:4174> with:
@@ -461,42 +462,39 @@ Errors always use the same envelope:
 
 ### Workspace files and automatic exports
 
-Every workspace is automatically saved as a complete JSON document, including
-workspaces with no views. JSON is the source of truth: on every startup StructSmith
-builds a fresh SQLite cache from JSON files in the workspace files directory,
-preserving workspace and entity IDs, revisions, timestamps, settings and layouts.
-Activity and snapshots start empty. A missing file means that workspace is absent;
-an empty directory means an empty model. Invalid JSON, duplicate IDs or broken
-references produce a startup error naming the source file, and the API/MCP do not
-start. The previous cache and source JSON are retained when restoration fails.
+Workspace JSON is the source of truth. On startup StructSmith reads the workspace
+directory once and loads the documents into one in-memory SQLite database. It
+preserves IDs, revisions, timestamps, settings and layouts. Activity and
+snapshots start empty. An empty directory gives an empty model. Invalid JSON,
+conflicting copies or broken references stop startup and report the source file.
 
-By default, files live in `data/auto-exports/`, or `auto-exports/` beside a custom
-`DATABASE_PATH`. Set `WORKSPACE_FILES_DIR` to another directory, such as a folder in
-your architecture repository. JSON filenames use the workspace name in snake case;
-renaming or deleting a workspace removes its previous files. The default directory is allowed by `.gitignore`; the SQLite cache and chat
-history stay ignored. With Docker, bind-mount `WORKSPACE_FILES_DIR` into a host
-repository if you want to commit it from the host (the default is inside `/data`).
+Files live in `data/workspaces/` locally and `/data/workspaces/` in Docker.
+Use `WORKSPACE_FILES_DIR` to select another directory. To use a separate Docker
+volume, mount it at `/workspaces` and set `WORKSPACE_FILES_DIR=/workspaces`. The
+server needs write access to that directory. Keep different instances on disjoint
+directories. Instances sharing a directory can use the owner's HTTP MCP endpoint.
 
-Changes, including MCP edits, save after three seconds without further changes.
-Files are published by atomic replacement so Git reads complete documents. Pending
-changes are flushed on clean shutdown; an abrupt termination can lose changes
-inside that three-second window. After `git pull` or changing branches, restart
-StructSmith to rebuild the model from the selected JSON. The running instance does
-not watch for external changes; avoid editing the same files from Git and the app
-at the same time.
+Auto-saves and JSON downloads use `<workspaceId>.json`, so renaming the workspace
+keeps its path. Workspace IDs use lowercase ASCII letters, digits, hyphens and
+underscores. JSON added under another name is renamed in place after all inputs
+validate. Two different documents with the same ID stop startup and report both
+paths. Ignore `.structsmith-lock.sqlite*` and `.structsmith-rename-*.tmp` in Git.
+Keep the lock file in place while the server is running. If a rename is
+interrupted, keep the temporary rename files for the next startup.
 
-In **Settings** beside **Add**, use **Automatic Mermaid export** to enable or
-disable an additional Markdown file with a heading and fenced `mermaid` block for
-each view. Saving the setting exports immediately; JSON persistence is always on.
-Older JSON export settings are read as Mermaid disabled. Legacy nested per-view
-JSON files are supported when their workspace documents agree; conflicting copies
-stop startup and report both paths.
+Ordinary changes are saved after three seconds without further changes. The
+server writes each complete document atomically and flushes the queue on clean
+shutdown. An abrupt termination restores the last saved documents at the next
+start. Stop StructSmith before changing the files from Git, then restart to load
+the selected branch.
 
-For an existing installation whose workspace directory has never been initialized,
-StructSmith first converts the current SQLite model to JSON once. Subsequent starts
-always use JSON. A local `.json-source` sidecar records that conversion; keep it
-with the cache, outside Git. Only one process may own a cache: use the running
-server's HTTP MCP endpoint instead of starting `mcp:stdio` against the same path.
+In **Settings** beside **Add**, **Automatic Mermaid export** writes a generated
+`<workspaceId>.md` beside the JSON. Changing the setting updates the export
+immediately. A handwritten Markdown file at that path is preserved.
+
+Back up the workspace directory after stopping StructSmith. Restore by placing
+the saved JSON in the configured directory and starting the server. Agent chat
+history has its own backup directory.
 
 ### Chat with local agents
 
@@ -628,13 +626,10 @@ to `supportedLanguages`. No copy is hard-coded in components.
 | --- | --- | --- |
 | `PORT` | `3000` (`8080` in Docker) | HTTP port |
 | `HOST` | `0.0.0.0` | Bind address |
-| `DATABASE_PATH` | `./data/architecture.db` | SQLite cache, rebuilt from JSON at startup |
-| `WORKSPACE_FILES_DIR` | `auto-exports/` beside SQLite | Authoritative JSON workspace files and optional Mermaid Markdown |
-| `MIGRATIONS_DIR` | `./migrations` | Migration folder |
+| `WORKSPACE_FILES_DIR` | `./data/workspaces` (`/data/workspaces` in Docker) | Workspace JSON and optional Mermaid Markdown |
 | `AUTH_MODE` | `none` | `none` or `token` |
 | `APP_TOKEN` | – | Bearer token required when `AUTH_MODE=token` |
 | `MCP_READ_ONLY` | `false` | When `true`, MCP exposes no mutating tools |
-| `SEED_EXAMPLE` | `true` | Seed the example workspace on first boot |
 | `APP_NAME` | `StructSmith` | Product name shown in the UI |
 | `AGENT_CHAT_ENABLED` | `true` | Enable the localhost-only CLI chat bridge |
 | `AGENT_CHAT_DIR` | `./data/agent-chat` (`/data/agent-chat` in Docker) | Local chat history, settings and empty working directory |
@@ -662,7 +657,7 @@ packages/
   domain/     Pure domain: rules, validation, operations, services (no Express, no SQLite)
   database/   Drizzle + bun:sqlite repositories implementing the domain ports
   mcp/        MCP server: tools, resources, prompts, Streamable HTTP handler
-migrations/   Plain SQL, applied in order at startup
+examples/     JSON workspace examples for explicit import
 tests/        bun:test suite over the real domain and a real (in-memory) database
 ```
 
@@ -682,9 +677,7 @@ bun run build       # production build of the UI
 bun run start       # run the server with the built UI
 bun run test        # domain + persistence tests
 bun run typecheck   # strict TypeScript across the whole monorepo
-bun run db:generate # generate a migration with drizzle-kit
-bun run db:migrate  # apply migrations
-bun run db:seed     # (re)create the example workspace
+bun run db:schema   # regenerate the in-memory SQLite schema from Drizzle
 bun run mcp:stdio   # MCP over stdio
 ```
 

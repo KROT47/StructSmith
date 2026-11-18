@@ -106,6 +106,10 @@ export function restoreDocument(repos: Repositories, document: WorkspaceDocument
     repos.elements.delete(element.id);
   }
 
+  insertDocumentContents(repos, document);
+}
+
+export function insertDocumentContents(repos: Repositories, document: WorkspaceDocument): void {
   for (const element of inParentOrder(document.elements)) repos.elements.insert(element);
   for (const view of document.views) {
     const { boundaries: _boundaries, elements, relationships, ...rest } = view;
