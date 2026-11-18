@@ -97,7 +97,7 @@ test("conflicting duplicate workspace exports fail with both source paths", () =
   }
 });
 
-test("nested invalid JSON is reported while symbolic files and directories are not followed", () => {
+test("workspace loading reports nested errors and skips symlinks and service files", () => {
   const directory = mkdtempSync(join(tmpdir(), "structsmith-nested-json-"));
   const outside = mkdtempSync(join(tmpdir(), "structsmith-outside-json-"));
   try {
@@ -105,6 +105,9 @@ test("nested invalid JSON is reported while symbolic files and directories are n
     writeFileSync(broken, "{broken");
     symlinkSync(broken, join(directory, "linked.json"));
     symlinkSync(outside, join(directory, "linked-directory"), "dir");
+    const metadata = join(directory, ".structsmith");
+    mkdirSync(metadata);
+    writeFileSync(join(metadata, "metadata.json"), "{not a workspace");
     expect(readWorkspaceFiles(directory)).toEqual([]);
     mkdirSync(join(directory, "nested"));
     const nestedBroken = join(directory, "nested", "broken.json");

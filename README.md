@@ -478,9 +478,14 @@ Auto-saves and JSON downloads use `<workspaceId>.json`, so renaming the workspac
 keeps its path. Workspace IDs use lowercase ASCII letters, digits, hyphens and
 underscores. JSON added under another name is renamed in place after all inputs
 validate. Two different documents with the same ID stop startup and report both
-paths. Ignore `.structsmith-lock.sqlite*` and `.structsmith-rename-*.tmp` in Git.
-Keep the lock file in place while the server is running. If a rename is
-interrupted, keep the temporary rename files for the next startup.
+paths. The shared workspace volume holds the SQLite lock under
+`.structsmith/lock.sqlite`. Ignore `.structsmith/` and `.structsmith-rename-*.tmp`
+in Git. Keep the lock file in place while the server is running and retain
+interrupted rename files for the next startup.
+
+When updating from a build that stored the lock beside the JSON files, stop
+all instances sharing that directory before switching. While they are stopped,
+you can remove the old `.structsmith-lock.sqlite` and its SQLite sidecar files.
 
 Ordinary changes are saved after three seconds without further changes. The
 server writes each complete document atomically and flushes the queue on clean

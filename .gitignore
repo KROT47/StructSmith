@@ -3,6 +3,7 @@ dist/
 # Workspace JSON and Mermaid files can be committed.
 data/*
 !data/workspaces/
+.structsmith/
 .structsmith-lock.sqlite*
 *.db
 .*.tmp

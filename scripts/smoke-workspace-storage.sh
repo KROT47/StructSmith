@@ -57,6 +57,7 @@ for ((attempt=0; attempt<30; attempt++)); do
   sleep 1
 done
 docker exec "$server" test -s /workspaces/storage-smoke.json
+docker exec "$server" sh -ec 'test -f /workspaces/.structsmith/lock.sqlite && test ! -e /workspaces/.structsmith-lock.sqlite'
 
 docker stop "$server"
 test "$(docker wait "$server")" = 0

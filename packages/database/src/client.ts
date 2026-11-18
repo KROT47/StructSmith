@@ -12,11 +12,14 @@ export interface DatabaseHandle {
   close(): void;
 }
 
+export const WORKSPACE_METADATA_DIR = ".structsmith";
+
 /** Coordinate writers sharing the workspace directory, including across containers. */
 export function acquireWorkspaceLock(directory: string): () => void {
-  mkdirSync(directory, { recursive: true });
+  const metadataDirectory = join(directory, WORKSPACE_METADATA_DIR);
+  mkdirSync(metadataDirectory, { recursive: true });
   // Keep the lock file in place so every writer opens the same inode.
-  const lock = new Database(join(directory, ".structsmith-lock.sqlite"));
+  const lock = new Database(join(metadataDirectory, "lock.sqlite"));
   try {
     lock.exec("BEGIN IMMEDIATE");
   } catch (error) {

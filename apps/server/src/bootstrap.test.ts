@@ -149,12 +149,8 @@ test("a fresh start creates an empty model even beside a previous database file"
   try {
     expect(context.services.workspaces.list()).toEqual([]);
     expect(readFileSync(dbPath, "utf8")).toBe("leave this file intact");
-    expect(readdirSync(config.workspaceFilesDir)).toContain(".structsmith-lock.sqlite");
-    expect(
-      readdirSync(config.workspaceFilesDir).filter(
-        (name) => !name.startsWith(".structsmith-lock.sqlite"),
-      ),
-    ).toEqual([]);
+    expect(readdirSync(config.workspaceFilesDir)).toEqual([".structsmith"]);
+    expect(readdirSync(join(config.workspaceFilesDir, ".structsmith"))).toContain("lock.sqlite");
   } finally {
     context.database.close();
   }
